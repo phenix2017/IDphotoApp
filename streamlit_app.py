@@ -312,7 +312,25 @@ if uploaded_file:
                 h_zoom, w_zoom = image_zoomed.shape[:2]
                 
                 st.markdown("### 🎯 Adjust Crop Boundaries")
-                st.markdown("*Drag sliders to position the crop frame around the head and shoulders*")
+                st.markdown("*Use sliders OR +/- buttons to position the crop frame around the head and shoulders*")
+                
+                # Scale buttons (+ to enlarge crop area, - to shrink)
+                st.markdown("**🔄 Scale Crop Area:**")
+                col_scale1, col_scale2, col_scale3, col_scale4, col_scale5 = st.columns(5)
+                with col_scale1:
+                    if st.button("➖ Shrink", key="shrink_crop", help="Shrink the crop area by 5%"):
+                        st.session_state.scale_factor = getattr(st.session_state, 'scale_factor', 1.0) - 0.05
+                with col_scale2:
+                    scale_display = getattr(st.session_state, 'scale_factor', 1.0)
+                    st.metric("Scale", f"{scale_display:.0%}")
+                with col_scale3:
+                    if st.button("➕ Enlarge", key="enlarge_crop", help="Enlarge the crop area by 5%"):
+                        st.session_state.scale_factor = getattr(st.session_state, 'scale_factor', 1.0) + 0.05
+                with col_scale4:
+                    if st.button("🔄 Reset", key="reset_crop", help="Reset to default size"):
+                        st.session_state.scale_factor = 1.0
+                with col_scale5:
+                    st.write("")  # Spacer
                 
                 col1, col2, col3, col4 = st.columns(4)
                 with col1:
@@ -344,11 +362,33 @@ if uploaded_file:
                         help="% from left of image"
                     )
                 
-                # Apply manual crop on zoomed image
-                y1 = int(h_zoom * crop_top_pct / 100)
-                y2 = int(h_zoom * crop_bottom_pct / 100)
-                x1 = int(w_zoom * crop_left_pct / 100)
-                x2 = int(w_zoom * crop_right_pct / 100)
+                # Apply scale factor from +/- buttons
+                scale_factor = getattr(st.session_state, 'scale_factor', 1.0)
+                scale_factor = max(0.5, min(2.0, scale_factor))  # Clamp between 0.5x and 2.0x
+                
+                # Calculate scaled crop boundaries
+                # Center the crop area and scale it
+                center_y = (crop_top_pct + crop_bottom_pct) / 2
+                center_x = (crop_left_pct + crop_right_pct) / 2
+                
+                height_range = crop_bottom_pct - crop_top_pct
+                width_range = crop_right_pct - crop_left_pct
+                
+                # Apply scale factor
+                scaled_height = height_range * scale_factor
+                scaled_width = width_range * scale_factor
+                
+                # Keep within bounds
+                crop_top_pct_scaled = max(0, min(50, center_y - scaled_height / 2))
+                crop_bottom_pct_scaled = min(100, max(crop_top_pct_scaled + 30, center_y + scaled_height / 2))
+                crop_left_pct_scaled = max(0, min(40, center_x - scaled_width / 2))
+                crop_right_pct_scaled = min(100, max(crop_left_pct_scaled + 40, center_x + scaled_width / 2))
+                
+                # Apply manual crop on zoomed image with scaled boundaries
+                y1 = int(h_zoom * crop_top_pct_scaled / 100)
+                y2 = int(h_zoom * crop_bottom_pct_scaled / 100)
+                x1 = int(w_zoom * crop_left_pct_scaled / 100)
+                x2 = int(w_zoom * crop_right_pct_scaled / 100)
                 
                 manual_cropped_bgr = image_zoomed[y1:y2, x1:x2]
                 
@@ -387,7 +427,7 @@ if uploaded_file:
                     # Add crop dimensions overlay on image
                     crop_w = x2 - x1
                     crop_h = y2 - y1
-                    dim_text = f"CROP: {crop_w}×{crop_h} px (Zoom: {zoom_level}%)"
+                    dim_text = f"CROP: {crop_w}×{crop_h} px (Zoom: {zoom_level}%, Scale: {scale_factor:.0%})"
                     cv2.putText(img_display, dim_text, (x1 + 10, y1 - 10), 
                                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
                     
