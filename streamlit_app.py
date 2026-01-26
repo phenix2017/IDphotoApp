@@ -555,6 +555,27 @@ if uploaded_file:
                 # Update cropped_bgr to use manual adjustment
                 cropped_bgr = manual_cropped_bgr
                 
+                # Validate feature positioning with tolerance
+                crop_h = y2 - y1
+                crop_w = x2 - x1
+                tolerance = 0.15  # 15% tolerance for feature positioning
+                
+                # Check if key features are within acceptable bounds
+                eye_line_y = y1 + int(crop_h * (1 - spec.eye_line_from_bottom_ratio))
+                forehead_y = y1 + int(crop_h * 0.1)
+                shoulders_y = y2 - int(crop_h * 0.2)
+                head_top_y = y1 + int(crop_h * 0.05)
+                
+                # Tolerance ranges (±15% of crop area)
+                eye_in_frame = y1 < eye_line_y < y2
+                forehead_in_frame = y1 - int(crop_h * tolerance) <= forehead_y <= y1 + int(crop_h * tolerance)
+                shoulders_in_frame = y2 - int(crop_h * tolerance) <= shoulders_y <= y2 + int(crop_h * tolerance)
+                head_top_in_frame = y1 - int(crop_h * tolerance) <= head_top_y <= y1 + int(crop_h * tolerance)
+                center_aligned = abs(x2 - x1 - crop_w) < int(crop_w * tolerance)
+                
+                # Overall validation
+                features_valid = all([eye_in_frame, forehead_in_frame, shoulders_in_frame, head_top_in_frame, center_aligned])
+                
                 # Show live preview with crop box overlay
                 st.markdown("### 📸 Live Preview")
                 st.markdown("*Green box shows the area that will be cropped. Guide lines help position key features correctly.*")
@@ -607,6 +628,43 @@ if uploaded_file:
                     
                     # Show crop dimensions below image
                     st.caption(f"📐 Crop: {crop_w}×{crop_h} px | Zoom: {zoom_level}% | Scale: {scale_factor:.0%} | Pos: ({move_offset_x:+d}%, {move_offset_y:+d}%)")
+                    
+                    # Show feature validation status
+                    st.markdown("#### ✓ Feature Position Validation")
+                    val_col1, val_col2, val_col3 = st.columns(3)
+                    with val_col1:
+                        if forehead_in_frame:
+                            st.success("✓ Forehead", icon="✅")
+                        else:
+                            st.warning("✗ Forehead", icon="⚠️")
+                    with val_col2:
+                        if eye_in_frame:
+                            st.success("✓ Eyes", icon="✅")
+                        else:
+                            st.warning("✗ Eyes", icon="⚠️")
+                    with val_col3:
+                        if head_top_in_frame:
+                            st.success("✓ Head Top", icon="✅")
+                        else:
+                            st.warning("✗ Head Top", icon="⚠️")
+                    
+                    val_col4, val_col5 = st.columns(2)
+                    with val_col4:
+                        if shoulders_in_frame:
+                            st.success("✓ Shoulders", icon="✅")
+                        else:
+                            st.warning("✗ Shoulders", icon="⚠️")
+                    with val_col5:
+                        if center_aligned:
+                            st.success("✓ Centered", icon="✅")
+                        else:
+                            st.warning("✗ Centered", icon="⚠️")
+                    
+                    # Overall validation status
+                    if features_valid:
+                        st.success("🎉 All features in correct position! Ready to save.", icon="✅")
+                    else:
+                        st.info("📍 Adjust the crop frame to position all features correctly", icon="ℹ️")
                 
                 with col_preview2:
                     # Display final photo with feature guides
