@@ -318,14 +318,14 @@ if uploaded_file:
                 st.markdown("**🔄 Scale Crop Area:**")
                 col_scale1, col_scale2, col_scale3, col_scale4, col_scale5 = st.columns(5)
                 with col_scale1:
-                    if st.button("➖ Shrink", key="shrink_crop", help="Shrink the crop area by 5%"):
-                        st.session_state.scale_factor = getattr(st.session_state, 'scale_factor', 1.0) - 0.05
+                    if st.button("➖ Shrink", key="shrink_crop", help="Shrink the crop area by 15%"):
+                        st.session_state.scale_factor = getattr(st.session_state, 'scale_factor', 1.0) - 0.15
                 with col_scale2:
                     scale_display = getattr(st.session_state, 'scale_factor', 1.0)
                     st.metric("Scale", f"{scale_display:.0%}")
                 with col_scale3:
-                    if st.button("➕ Enlarge", key="enlarge_crop", help="Enlarge the crop area by 5%"):
-                        st.session_state.scale_factor = getattr(st.session_state, 'scale_factor', 1.0) + 0.05
+                    if st.button("➕ Enlarge", key="enlarge_crop", help="Enlarge the crop area by 15%"):
+                        st.session_state.scale_factor = getattr(st.session_state, 'scale_factor', 1.0) + 0.15
                 with col_scale4:
                     if st.button("🔄 Reset", key="reset_crop", help="Reset to default size"):
                         st.session_state.scale_factor = 1.0
