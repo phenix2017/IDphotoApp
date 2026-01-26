@@ -283,6 +283,35 @@ if uploaded_file:
                     default_top, default_bottom = 20, 85
                     default_left, default_right = 15, 85
                 
+                # Zoom control
+                st.markdown("### 🔍 Zoom Control")
+                col_zoom1, col_zoom2, col_zoom3 = st.columns([2, 1, 1])
+                with col_zoom1:
+                    zoom_level = st.slider(
+                        "Zoom Level",
+                        min_value=50, max_value=200, value=100, step=5,
+                        key="zoom_level",
+                        help="Zoom percentage: 50% = zoomed out, 200% = zoomed in"
+                    )
+                with col_zoom2:
+                    st.metric("Current Zoom", f"{zoom_level}%")
+                with col_zoom3:
+                    st.info(f"📏 Scale: {zoom_level/100:.1f}x")
+                
+                # Apply zoom to image
+                if zoom_level != 100:
+                    zoom_h = int(h * zoom_level / 100)
+                    zoom_w = int(w * zoom_level / 100)
+                    image_zoomed = cv2.resize(image_bgr, (zoom_w, zoom_h), interpolation=cv2.INTER_LINEAR)
+                else:
+                    image_zoomed = image_bgr.copy()
+                
+                # Update dimensions after zoom
+                h_zoom, w_zoom = image_zoomed.shape[:2]
+                
+                st.markdown("### 🎯 Adjust Crop Boundaries")
+                st.markdown("*Drag sliders to position the crop frame around the head and shoulders*")
+                
                 col1, col2, col3, col4 = st.columns(4)
                 with col1:
                     crop_top_pct = st.slider(
@@ -313,13 +342,13 @@ if uploaded_file:
                         help="% from left of image"
                     )
                 
-                # Apply manual crop
-                y1 = int(h * crop_top_pct / 100)
-                y2 = int(h * crop_bottom_pct / 100)
-                x1 = int(w * crop_left_pct / 100)
-                x2 = int(w * crop_right_pct / 100)
+                # Apply manual crop on zoomed image
+                y1 = int(h_zoom * crop_top_pct / 100)
+                y2 = int(h_zoom * crop_bottom_pct / 100)
+                x1 = int(w_zoom * crop_left_pct / 100)
+                x2 = int(w_zoom * crop_right_pct / 100)
                 
-                manual_cropped_bgr = image_bgr[y1:y2, x1:x2]
+                manual_cropped_bgr = image_zoomed[y1:y2, x1:x2]
                 
                 # Resize to spec dimensions
                 spec = specs[country]
@@ -335,8 +364,8 @@ if uploaded_file:
                 
                 col_preview1, col_preview2 = st.columns(2)
                 with col_preview1:
-                    # Draw rectangle showing crop area on image
-                    img_display = image_bgr.copy()
+                    # Draw rectangle showing crop area on zoomed image
+                    img_display = image_zoomed.copy()
                     
                     # Draw outer rectangle with thick green border
                     cv2.rectangle(img_display, (x1, y1), (x2, y2), (0, 255, 0), 4)
@@ -356,7 +385,7 @@ if uploaded_file:
                     # Add crop dimensions overlay on image
                     crop_w = x2 - x1
                     crop_h = y2 - y1
-                    dim_text = f"CROP: {crop_w}×{crop_h} px"
+                    dim_text = f"CROP: {crop_w}×{crop_h} px (Zoom: {zoom_level}%)"
                     cv2.putText(img_display, dim_text, (x1 + 10, y1 - 10), 
                                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
                     
