@@ -439,6 +439,9 @@ if uploaded_file:
                 manual_cropped_rgb = cv2.cvtColor(manual_cropped_bgr, cv2.COLOR_BGR2RGB)
                 cropped_pil = Image.fromarray(manual_cropped_rgb)
                 
+                # Update cropped_bgr to use manual adjustment
+                cropped_bgr = manual_cropped_bgr
+                
                 # Show live preview with crop box overlay
                 st.markdown("### 📸 Live Preview")
                 st.markdown("*Green box shows the area that will be cropped and used as your ID photo*")
@@ -474,14 +477,12 @@ if uploaded_file:
                     st.caption(f"📐 Crop: {crop_w}×{crop_h} px | Zoom: {zoom_level}% | Scale: {scale_factor:.0%} | Pos: ({move_offset_x:+d}%, {move_offset_y:+d}%)")
                 
                 with col_preview2:
-                    # Display final photo without text overlay
+                    # Display final photo without text overlay (now using manual adjustment)
                     final_photo_display = cv2.cvtColor(cropped_bgr, cv2.COLOR_BGR2RGB)
                     st.image(Image.fromarray(final_photo_display), 
                             caption=f"Final ID Photo",
                             use_container_width=True)
                     st.caption(f"✓ {w_px}×{h_px} px | {specs[country].width_in}\" × {specs[country].height_in}\" @ {dpi} DPI")
-                
-                cropped_bgr = manual_cropped_bgr
                 
                 # Generate print sheet
                 sheet = build_print_sheet(
