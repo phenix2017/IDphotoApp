@@ -67,14 +67,4 @@ Store these specs in a JSON file for easy extension.
 - Implement a prototype script: `process_photo.py`.
 - Add a CLI or minimal UI for user input and preview.
 
-## Quick Start
 
-1. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
-2. Run the processor:
-   ```bash
-   python process_photo.py path/to/photo.jpg --country US --replace-bg
-   ```
-3. Outputs are saved in `output/` as a cropped photo and a print sheet.
