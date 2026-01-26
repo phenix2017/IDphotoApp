@@ -5,13 +5,14 @@ from __future__ import annotations
 
 import argparse
 import json
-import sys
+import math
+import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Optional, Tuple
+from typing import Dict, Tuple
 
 import numpy as np
-from PIL import Image, ImageDraw
+from PIL import Image
 
 try:
     import cv2
@@ -59,28 +60,6 @@ def load_specs(path: Path) -> Dict[str, PhotoSpec]:
             background_rgb=tuple(value["background_rgb"]),
         )
     return specs
-
-
-def create_demo_image() -> Tuple[np.ndarray, Tuple[int, int, int, int], Tuple[int, int]]:
-    width, height = 1200, 1600
-    image = Image.new("RGB", (width, height), (240, 240, 240))
-    draw = ImageDraw.Draw(image)
-
-    face_left = width // 2 - 220
-    face_top = height // 2 - 320
-    face_right = width // 2 + 220
-    face_bottom = height // 2 + 260
-    draw.ellipse([face_left, face_top, face_right, face_bottom], fill=(220, 190, 170))
-
-    eye_y = face_top + 200
-    draw.ellipse([face_left + 110, eye_y, face_left + 160, eye_y + 50], fill=(50, 50, 50))
-    draw.ellipse([face_right - 160, eye_y, face_right - 110, eye_y + 50], fill=(50, 50, 50))
-
-    bbox = (face_left, face_top, face_right - face_left, face_bottom - face_top)
-    eye_point = (width // 2, eye_y + 25)
-
-    image_bgr = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
-    return image_bgr, bbox, eye_point
 
 
 def detect_face(image_bgr: np.ndarray) -> Tuple[Tuple[int, int, int, int], Tuple[int, int]]:
@@ -140,7 +119,7 @@ def crop_to_spec(
     dpi: int,
 ) -> np.ndarray:
     out_w, out_h = compute_output_size_px(spec, dpi)
-    _, _, _, box_h = bbox
+    x_min, y_min, box_w, box_h = bbox
 
     target_head_height = spec.head_height_ratio * out_h
     scale = target_head_height / max(box_h, 1)
@@ -233,173 +212,11 @@ def parse_layout(value: str) -> LayoutSpec:
         raise argparse.ArgumentTypeError("layout must be like 4x6 or 6x6") from exc
 
 
-def process_photo(
-    image_bgr: np.ndarray,
-    spec: PhotoSpec,
-    dpi: int,
-    layout: LayoutSpec,
-    copies: int,
-    margin: float,
-    spacing: float,
-    output_dir: Path,
-    replace_bg: bool,
-    demo_bbox: Optional[Tuple[int, int, int, int]] = None,
-    demo_eye_point: Optional[Tuple[int, int]] = None,
-    prefix: str = "photo",
-) -> Tuple[Path, Path]:
-    if replace_bg:
-        image_bgr = replace_background(image_bgr, spec.background_rgb)
-
-    if demo_bbox is None or demo_eye_point is None:
-        bbox, eye_point = detect_face(image_bgr)
-    else:
-        bbox, eye_point = demo_bbox, demo_eye_point
-
-    cropped_bgr = crop_to_spec(image_bgr, bbox, eye_point, spec, dpi)
-
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    cropped_rgb = cv2.cvtColor(cropped_bgr, cv2.COLOR_BGR2RGB)
-    photo = Image.fromarray(cropped_rgb)
-
-    photo_path = output_dir / f"{prefix}_cropped.jpg"
-    photo.save(photo_path, quality=95)
-
-    sheet = build_print_sheet(
-        photo=photo,
-        layout=layout,
-        dpi=dpi,
-        margin_in=margin,
-        spacing_in=spacing,
-        copies=copies,
-    )
-    sheet_path = output_dir / f"{prefix}_sheet_{int(layout.width_in)}x{int(layout.height_in)}.jpg"
-    sheet.save(sheet_path, quality=95)
-
-    return photo_path, sheet_path
-
-
-def run_gui() -> None:
-    try:
-        import tkinter as tk
-        from tkinter import filedialog, messagebox, ttk
-    except ImportError as exc:
-        raise SystemExit("tkinter is required for the GUI.") from exc
-
-    specs = load_specs(Path("specs.json"))
-    country_codes = list(specs.keys())
-
-    root = tk.Tk()
-    root.title("ID Photo Processor")
-
-    input_path = tk.StringVar(value="")
-    country = tk.StringVar(value=country_codes[0] if country_codes else "US")
-    dpi_var = tk.IntVar(value=300)
-    replace_bg = tk.BooleanVar(value=True)
-    layout_var = tk.StringVar(value="4x6")
-    copies_var = tk.IntVar(value=6)
-    margin_var = tk.DoubleVar(value=0.1)
-    spacing_var = tk.DoubleVar(value=0.1)
-    use_demo = tk.BooleanVar(value=True)
-
-    def browse_file() -> None:
-        path = filedialog.askopenfilename(
-            title="Select Photo",
-            filetypes=[("Images", "*.jpg *.jpeg *.png")],
-        )
-        if path:
-            input_path.set(path)
-            use_demo.set(False)
-
-    def handle_process() -> None:
-        spec = specs.get(country.get())
-        if spec is None:
-            messagebox.showerror("Error", "Unknown country spec.")
-            return
-
-        if use_demo.get():
-            image_bgr, bbox, eye_point = create_demo_image()
-            prefix = "demo"
-        else:
-            path = input_path.get().strip()
-            if not path:
-                messagebox.showerror("Error", "Please select an input photo or use demo mode.")
-                return
-            image_bgr = cv2.imread(path)
-            if image_bgr is None:
-                messagebox.showerror("Error", "Could not read input image.")
-                return
-            bbox, eye_point = None, None
-            prefix = Path(path).stem
-
-        try:
-            photo_path, sheet_path = process_photo(
-                image_bgr=image_bgr,
-                spec=spec,
-                dpi=dpi_var.get(),
-                layout=parse_layout(layout_var.get()),
-                copies=copies_var.get(),
-                margin=margin_var.get(),
-                spacing=spacing_var.get(),
-                output_dir=Path("output"),
-                replace_bg=replace_bg.get(),
-                demo_bbox=bbox,
-                demo_eye_point=eye_point,
-                prefix=prefix,
-            )
-        except Exception as exc:  # noqa: BLE001 - show message to user
-            messagebox.showerror("Processing Error", str(exc))
-            return
-
-        messagebox.showinfo(
-            "Done",
-            f"Saved cropped photo:\n{photo_path}\n\nSaved print sheet:\n{sheet_path}",
-        )
-
-    frame = ttk.Frame(root, padding=12)
-    frame.grid(row=0, column=0, sticky="nsew")
-
-    ttk.Label(frame, text="Input Photo").grid(row=0, column=0, sticky="w")
-    ttk.Entry(frame, textvariable=input_path, width=45).grid(row=0, column=1, sticky="ew")
-    ttk.Button(frame, text="Browse", command=browse_file).grid(row=0, column=2, padx=4)
-
-    ttk.Checkbutton(frame, text="Use demo image", variable=use_demo).grid(row=1, column=1, sticky="w")
-
-    ttk.Label(frame, text="Country").grid(row=2, column=0, sticky="w")
-    ttk.OptionMenu(frame, country, country.get(), *country_codes).grid(row=2, column=1, sticky="w")
-
-    ttk.Label(frame, text="DPI").grid(row=3, column=0, sticky="w")
-    ttk.Entry(frame, textvariable=dpi_var, width=10).grid(row=3, column=1, sticky="w")
-
-    ttk.Checkbutton(frame, text="Replace background", variable=replace_bg).grid(row=4, column=1, sticky="w")
-
-    ttk.Label(frame, text="Layout").grid(row=5, column=0, sticky="w")
-    ttk.Entry(frame, textvariable=layout_var, width=10).grid(row=5, column=1, sticky="w")
-
-    ttk.Label(frame, text="Copies").grid(row=6, column=0, sticky="w")
-    ttk.Entry(frame, textvariable=copies_var, width=10).grid(row=6, column=1, sticky="w")
-
-    ttk.Label(frame, text="Margin (in)").grid(row=7, column=0, sticky="w")
-    ttk.Entry(frame, textvariable=margin_var, width=10).grid(row=7, column=1, sticky="w")
-
-    ttk.Label(frame, text="Spacing (in)").grid(row=8, column=0, sticky="w")
-    ttk.Entry(frame, textvariable=spacing_var, width=10).grid(row=8, column=1, sticky="w")
-
-    ttk.Button(frame, text="Process", command=handle_process).grid(row=9, column=1, pady=8)
-
-    frame.columnconfigure(1, weight=1)
-    root.mainloop()
-
-
 def main() -> None:
-    if len(sys.argv) == 1:
-        run_gui()
-        return
-
     parser = argparse.ArgumentParser(description="Process ID photos for passport specs.")
-    parser.add_argument("input", nargs="?", type=Path, help="Input photo path")
+    parser.add_argument("input", type=Path, help="Input photo path")
     parser.add_argument("--specs", type=Path, default=Path("specs.json"))
-    parser.add_argument("--country", default="US", help="Country code from specs.json")
+    parser.add_argument("--country", required=True, help="Country code from specs.json")
     parser.add_argument("--dpi", type=int, default=300)
     parser.add_argument("--replace-bg", action="store_true")
     parser.add_argument("--layout", type=parse_layout, default=parse_layout("4x6"))
@@ -407,7 +224,6 @@ def main() -> None:
     parser.add_argument("--margin", type=float, default=0.1, help="Margin in inches")
     parser.add_argument("--spacing", type=float, default=0.1, help="Spacing in inches")
     parser.add_argument("--output-dir", type=Path, default=Path("output"))
-    parser.add_argument("--demo", action="store_true", help="Use a demo image instead of an input photo")
     args = parser.parse_args()
 
     specs = load_specs(args.specs)
@@ -415,30 +231,35 @@ def main() -> None:
         raise SystemExit(f"Unknown country '{args.country}'. Available: {', '.join(specs)}")
     spec = specs[args.country]
 
-    if args.demo or args.input is None:
-        image_bgr, bbox, eye_point = create_demo_image()
-        prefix = "demo"
-    else:
-        image_bgr = cv2.imread(str(args.input))
-        if image_bgr is None:
-            raise SystemExit("Could not read input image.")
-        bbox, eye_point = None, None
-        prefix = args.input.stem
+    image_bgr = cv2.imread(str(args.input))
+    if image_bgr is None:
+        raise SystemExit("Could not read input image.")
 
-    photo_path, sheet_path = process_photo(
-        image_bgr=image_bgr,
-        spec=spec,
-        dpi=args.dpi,
+    if args.replace_bg:
+        image_bgr = replace_background(image_bgr, spec.background_rgb)
+
+    bbox, eye_point = detect_face(image_bgr)
+    cropped_bgr = crop_to_spec(image_bgr, bbox, eye_point, spec, args.dpi)
+
+    output_dir = args.output_dir
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    cropped_rgb = cv2.cvtColor(cropped_bgr, cv2.COLOR_BGR2RGB)
+    photo = Image.fromarray(cropped_rgb)
+
+    photo_path = output_dir / f"{args.country.lower()}_photo.jpg"
+    photo.save(photo_path, quality=95)
+
+    sheet = build_print_sheet(
+        photo=photo,
         layout=args.layout,
+        dpi=args.dpi,
+        margin_in=args.margin,
+        spacing_in=args.spacing,
         copies=args.copies,
-        margin=args.margin,
-        spacing=args.spacing,
-        output_dir=args.output_dir,
-        replace_bg=args.replace_bg,
-        demo_bbox=bbox,
-        demo_eye_point=eye_point,
-        prefix=prefix,
     )
+    sheet_path = output_dir / f"{args.country.lower()}_sheet_{int(args.layout.width_in)}x{int(args.layout.height_in)}.jpg"
+    sheet.save(sheet_path, quality=95)
 
     print(f"Saved cropped photo: {photo_path}")
     print(f"Saved print sheet: {sheet_path}")
