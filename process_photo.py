@@ -185,28 +185,56 @@ def build_print_sheet(
     photo: Image.Image,
     layout: LayoutSpec,
     dpi: int,
-    margin_in: float,
-    spacing_in: float,
-    copies: int,
+    margin_in: float = 0.1,
+    spacing_in: float = 0.05,
+    copies: int = 6,
 ) -> Image.Image:
+    """Build print sheet maximizing photo usage on paper.
+    
+    Args:
+        photo: Photo to tile
+        layout: Sheet dimensions (width_in, height_in)
+        dpi: Dots per inch resolution
+        margin_in: Margin from edges (default: 0.1")
+        spacing_in: Space between photos (default: 0.05")
+        copies: Number of photos to place
+    
+    Returns:
+        PIL Image with tiled photos
+    """
     sheet_w = int(round(layout.width_in * dpi))
     sheet_h = int(round(layout.height_in * dpi))
+    
+    # Use minimal margins and spacing for maximum photo density
     margin = int(round(margin_in * dpi))
     spacing = int(round(spacing_in * dpi))
-
+    
     sheet = Image.new("RGB", (sheet_w, sheet_h), (255, 255, 255))
     photo_w, photo_h = photo.size
 
-    max_cols = max(1, (sheet_w - 2 * margin + spacing) // (photo_w + spacing))
-    max_rows = max(1, (sheet_h - 2 * margin + spacing) // (photo_h + spacing))
-
+    # Calculate how many photos fit per row and column
+    available_width = sheet_w - 2 * margin
+    available_height = sheet_h - 2 * margin
+    
+    # Calculate maximum photos that can fit
+    max_cols = max(1, (available_width + spacing) // (photo_w + spacing))
+    max_rows = max(1, (available_height + spacing) // (photo_h + spacing))
+    
+    # Center the photos on the sheet for better appearance
+    total_photos_width = max_cols * photo_w + (max_cols - 1) * spacing
+    total_photos_height = max_rows * photo_h + (max_rows - 1) * spacing
+    
+    # Calculate centered margins
+    left_margin = margin + (available_width - total_photos_width) // 2
+    top_margin = margin + (available_height - total_photos_height) // 2
+    
     placed = 0
     for row in range(max_rows):
         for col in range(max_cols):
             if placed >= copies:
                 return sheet
-            x = margin + col * (photo_w + spacing)
-            y = margin + row * (photo_h + spacing)
+            x = left_margin + col * (photo_w + spacing)
+            y = top_margin + row * (photo_h + spacing)
             sheet.paste(photo, (x, y))
             placed += 1
 
