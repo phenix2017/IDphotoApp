@@ -393,32 +393,8 @@ if uploaded_file:
                     default_top, default_bottom = 20, 85
                     default_left, default_right = 15, 85
                 
-                # Zoom control
-                st.markdown("#### 🔍 Zoom Level")
-                zoom_col1, zoom_col2, zoom_col3 = st.columns([3, 1, 1], gap="small")
-                with zoom_col1:
-                    zoom_level = st.slider(
-                        "Zoom Level",
-                        min_value=50, max_value=200, value=100, step=5,
-                        key="zoom_slider",
-                        help="50% = zoomed out, 200% = zoomed in"
-                    )
-                with zoom_col2:
-                    st.metric("", f"{zoom_level}%", delta=None)
-                with zoom_col3:
-                    st.metric("", f"{zoom_level/100:.1f}x", delta=None)
-                
-                # Apply zoom to image - show preview of zoom
-                if zoom_level != 100:
-                    zoom_h = int(h * zoom_level / 100)
-                    zoom_w = int(w * zoom_level / 100)
-                    image_zoomed = cv2.resize(image_bgr, (zoom_w, zoom_h), interpolation=cv2.INTER_CUBIC)
-                    st.success(f"✅ Image zoomed to {zoom_level}% - Adjust crop sliders to fit the photo")
-                else:
-                    image_zoomed = image_bgr.copy()
-                    st.info("📐 100% - Original size. Adjust crop sliders or use zoom to scale.")
-                
-                # Update dimensions after zoom
+                # Use original image without zoom
+                image_zoomed = image_bgr.copy()
                 h_zoom, w_zoom = image_zoomed.shape[:2]
                 
                 # Create a compact control panel
@@ -615,7 +591,7 @@ if uploaded_file:
                             use_container_width=True)
                     
                     # Show crop dimensions below image
-                    st.caption(f"📐 Crop: {crop_w}×{crop_h} px | Zoom: {zoom_level}% | Scale: {scale_factor:.0%} | Pos: ({move_offset_x:+d}%, {move_offset_y:+d}%)")
+                    st.caption(f"📐 Crop: {crop_w}×{crop_h} px | Scale: {scale_factor:.0%} | Pos: ({move_offset_x:+d}%, {move_offset_y:+d}%)")
                     
                     # Show feature validation status
                     st.markdown("#### ✓ Feature Position Validation")
