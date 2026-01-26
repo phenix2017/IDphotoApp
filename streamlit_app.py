@@ -353,19 +353,40 @@ if uploaded_file:
                     cv2.line(img_display, (x1, y1), (x1 + corner_size, y1), (0, 200, 255), 3)
                     cv2.line(img_display, (x1, y1), (x1, y1 + corner_size), (0, 200, 255), 3)
                     
+                    # Add crop dimensions overlay on image
+                    crop_w = x2 - x1
+                    crop_h = y2 - y1
+                    dim_text = f"CROP: {crop_w}×{crop_h} px"
+                    cv2.putText(img_display, dim_text, (x1 + 10, y1 - 10), 
+                               cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+                    
                     img_display_rgb = cv2.cvtColor(img_display, cv2.COLOR_BGR2RGB)
                     st.image(Image.fromarray(img_display_rgb), 
                             caption=f"Original Image - Crop Region Highlighted (Green Box)",
                             use_container_width=True)
                     
                     # Show crop dimensions
-                    crop_w = x2 - x1
-                    crop_h = y2 - y1
                     st.caption(f"📐 Crop region: {crop_w}×{crop_h} px | {crop_top_pct}-{crop_bottom_pct}% height, {crop_left_pct}-{crop_right_pct}% width")
                 
                 with col_preview2:
-                    st.image(cropped_pil, 
-                            caption=f"Final ID Photo ({w_px}×{h_px}px @ {dpi} DPI)",
+                    # Add dimensions overlay on final photo
+                    final_photo_display = cv2.cvtColor(cropped_bgr.copy(), cv2.COLOR_BGR2RGB)
+                    final_photo_pil = Image.fromarray(final_photo_display)
+                    
+                    # Draw semi-transparent background for text
+                    final_photo_cv = cropped_bgr.copy()
+                    h_photo, w_photo = final_photo_cv.shape[:2]
+                    
+                    # Draw dimension text at top
+                    dim_text = f"SIZE: {w_px} × {h_px} px | {specs[country].width_in}\" × {specs[country].height_in}\" @ {dpi} DPI"
+                    text_size = cv2.getTextSize(dim_text, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)[0]
+                    cv2.rectangle(final_photo_cv, (10, 5), (10 + text_size[0] + 10, 30), (0, 0, 0), -1)
+                    cv2.putText(final_photo_cv, dim_text, (15, 25), 
+                               cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+                    
+                    final_photo_display_rgb = cv2.cvtColor(final_photo_cv, cv2.COLOR_BGR2RGB)
+                    st.image(Image.fromarray(final_photo_display_rgb), 
+                            caption=f"Final ID Photo",
                             use_container_width=True)
                     st.caption(f"✓ This is your final cropped and resized photo")
                 
@@ -390,11 +411,30 @@ if uploaded_file:
                 st.subheader("Cropped Photo")
                 spec = specs[country]
                 w_in, h_in = spec.width_in, spec.height_in
-                st.image(cropped_pil, caption=f"{w_in}\" × {h_in}\"", use_container_width=True)
+                
+                # Add dimensions overlay to cropped photo
+                cropped_with_dims = cv2.cvtColor(cropped_bgr.copy(), cv2.COLOR_BGR2RGB)
+                h_final, w_final = cropped_bgr.shape[:2]
+                
+                # Draw dimension text with background
+                dim_text = f"{w_final} × {h_final} px | {w_in}\" × {h_in}\" | {dpi} DPI"
+                text_size = cv2.getTextSize(dim_text, cv2.FONT_HERSHEY_SIMPLEX, 0.7, 2)[0]
+                cv2.rectangle(cropped_with_dims, (10, 5), (10 + text_size[0] + 10, 35), (0, 0, 0), -1)
+                cv2.putText(cropped_with_dims, dim_text, (15, 30), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+                
+                # Also add country specification at bottom
+                spec_text = f"{country} Standard"
+                spec_size = cv2.getTextSize(spec_text, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)[0]
+                cv2.rectangle(cropped_with_dims, (10, h_final - 35), (10 + spec_size[0] + 10, h_final - 5), (0, 0, 0), -1)
+                cv2.putText(cropped_with_dims, spec_text, (15, h_final - 10), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 200, 0), 2)
+                
+                st.image(Image.fromarray(cropped_with_dims), caption=f"{w_in}\" × {h_in}\"", use_container_width=True)
                 
                 # Photo size info
                 w_px, h_px = cropped_pil.size
-                st.caption(f"Size: {w_px} × {h_px} pixels @ {dpi} DPI")
+                st.caption(f"📐 Size: {w_px} × {h_px} pixels @ {dpi} DPI")
                 
                 # Download cropped photo
                 img_buffer = io.BytesIO()
@@ -411,11 +451,31 @@ if uploaded_file:
             
             with col_sheet:
                 st.subheader("Print Sheet")
-                st.image(sheet, caption=f"Print Layout: {layout.width_in}\" × {layout.height_in}\"", use_container_width=True)
+                
+                # Add dimensions overlay to print sheet
+                sheet_with_dims = sheet.copy()
+                sheet_cv = cv2.cvtColor(np.array(sheet_with_dims), cv2.COLOR_RGB2BGR)
+                sheet_h, sheet_w = sheet_cv.shape[:2]
+                
+                # Draw print sheet information
+                info_text = f"Sheet: {sheet_w} × {sheet_h} px | {layout.width_in}\" × {layout.height_in}\" | {copies} copies @ {dpi} DPI"
+                text_size = cv2.getTextSize(info_text, cv2.FONT_HERSHEY_SIMPLEX, 0.7, 2)[0]
+                cv2.rectangle(sheet_cv, (10, 5), (10 + text_size[0] + 10, 35), (0, 0, 0), -1)
+                cv2.putText(sheet_cv, info_text, (15, 30), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+                
+                # Add layout type at bottom
+                layout_text = f"Layout: {int(layout.width_in)}\" × {int(layout.height_in)}\""
+                layout_size = cv2.getTextSize(layout_text, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)[0]
+                cv2.rectangle(sheet_cv, (10, sheet_h - 35), (10 + layout_size[0] + 10, sheet_h - 5), (0, 0, 0), -1)
+                cv2.putText(sheet_cv, layout_text, (15, sheet_h - 10), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 200, 0), 2)
+                
+                sheet_cv_rgb = cv2.cvtColor(sheet_cv, cv2.COLOR_BGR2RGB)
+                st.image(Image.fromarray(sheet_cv_rgb), caption=f"Print Layout: {layout.width_in}\" × {layout.height_in}\"", use_container_width=True)
                 
                 # Sheet size info
-                sheet_w, sheet_h = sheet.size
-                st.caption(f"Sheet: {sheet_w} × {sheet_h} pixels @ {dpi} DPI\n{copies} copies")
+                st.caption(f"📐 Sheet: {sheet_w} × {sheet_h} pixels @ {dpi} DPI | {copies} copies")
                 
                 # Download print sheet
                 sheet_buffer = io.BytesIO()
