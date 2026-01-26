@@ -66,3 +66,5 @@ Store these specs in a JSON file for easy extension.
 - Add a `specs.json` with country definitions.
 - Implement a prototype script: `process_photo.py`.
 - Add a CLI or minimal UI for user input and preview.
+
+

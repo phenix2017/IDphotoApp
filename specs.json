@@ -1,0 +1,26 @@
+{
+  "US": {
+    "name": "US Passport",
+    "photo_width_in": 2.0,
+    "photo_height_in": 2.0,
+    "head_height_ratio": 0.6,
+    "eye_line_from_bottom_ratio": 0.6,
+    "background_rgb": [255, 255, 255]
+  },
+  "CA": {
+    "name": "Canada Passport",
+    "photo_width_mm": 50,
+    "photo_height_mm": 70,
+    "head_height_ratio": 0.52,
+    "eye_line_from_bottom_ratio": 0.6,
+    "background_rgb": [255, 255, 255]
+  },
+  "UK": {
+    "name": "UK Passport",
+    "photo_width_mm": 35,
+    "photo_height_mm": 45,
+    "head_height_ratio": 0.62,
+    "eye_line_from_bottom_ratio": 0.58,
+    "background_rgb": [255, 255, 255]
+  }
+}
