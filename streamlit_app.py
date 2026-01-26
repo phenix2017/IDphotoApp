@@ -419,95 +419,92 @@ if uploaded_file:
                 # Update dimensions after zoom
                 h_zoom, w_zoom = image_zoomed.shape[:2]
                 
-                st.markdown("### 🎯 Adjust Crop Boundaries")
-                st.markdown("*Use sliders OR +/- buttons to position the crop frame around the head and shoulders*")
+                # Create a compact control panel
+                st.markdown("### 🎯 Crop Controls")
                 
-                # Scale buttons (+ to enlarge crop area, - to shrink)
-                st.markdown("#### 📏 Crop Size")
-                col_scale1, col_scale2, col_scale3, col_scale4, col_scale5 = st.columns(5, gap="small")
-                with col_scale1:
-                    if st.button("➖ Shrink", key="shrink_crop", help="Shrink the crop area by 15%", use_container_width=True):
-                        st.session_state.scale_factor = getattr(st.session_state, 'scale_factor', 1.0) - 0.15
-                with col_scale2:
+                # Main layout: sliders on left, buttons on right
+                control_col1, control_col2 = st.columns([3, 1], gap="medium")
+                
+                with control_col1:
+                    st.markdown("#### 📐 Boundary Sliders")
+                    col1, col2, col3, col4 = st.columns(4, gap="small")
+                    with col1:
+                        crop_top_pct = st.slider(
+                            "Top",
+                            0, 50, default_top, 1,
+                            key="manual_crop_top",
+                            help="Distance from top"
+                        )
+                    with col2:
+                        crop_bottom_pct = st.slider(
+                            "Bottom",
+                            crop_top_pct + 30, 100, default_bottom, 1,
+                            key="manual_crop_bottom",
+                            help="Distance from top"
+                        )
+                    with col3:
+                        crop_left_pct = st.slider(
+                            "Left",
+                            0, 40, default_left, 1,
+                            key="manual_crop_left",
+                            help="Distance from left"
+                        )
+                    with col4:
+                        crop_right_pct = st.slider(
+                            "Right",
+                            crop_left_pct + 40, 100, default_right, 1,
+                            key="manual_crop_right",
+                            help="Distance from left"
+                        )
+                
+                with control_col2:
+                    st.markdown("#### 🎛️ Quick Adjust")
+                    
+                    # Size controls
+                    st.markdown("**Size**")
+                    size_col1, size_col2 = st.columns(2, gap="small")
+                    with size_col1:
+                        if st.button("➖", key="shrink_crop", help="Shrink 15%", use_container_width=True):
+                            st.session_state.scale_factor = getattr(st.session_state, 'scale_factor', 1.0) - 0.15
+                    with size_col2:
+                        if st.button("➕", key="enlarge_crop", help="Enlarge 15%", use_container_width=True):
+                            st.session_state.scale_factor = getattr(st.session_state, 'scale_factor', 1.0) + 0.15
+                    
                     scale_display = getattr(st.session_state, 'scale_factor', 1.0)
-                    st.metric("Size", f"{scale_display:.0%}")
-                with col_scale3:
-                    if st.button("➕ Enlarge", key="enlarge_crop", help="Enlarge the crop area by 15%", use_container_width=True):
-                        st.session_state.scale_factor = getattr(st.session_state, 'scale_factor', 1.0) + 0.15
-                with col_scale4:
-                    if st.button("🔄 Reset", key="reset_crop", help="Reset to default size", use_container_width=True):
+                    st.metric("", f"{scale_display:.0%}", delta=None, label_visibility="collapsed")
+                    
+                    if st.button("Reset Size", key="reset_crop", use_container_width=True, help="Reset to default"):
                         st.session_state.scale_factor = 1.0
-                with col_scale5:
-                    st.write("")  # Spacer
-                
-                # Direction buttons to move crop area
-                st.markdown("#### ➡️ Crop Position")
-                st.markdown("*Click buttons to move the crop frame*")
-                
-                # Up button
-                col_up1, col_up2, col_up3 = st.columns([1, 1, 1])
-                with col_up2:
-                    if st.button("⬆️ UP", key="move_up", help="Move crop area up by 3%", use_container_width=True):
+                    
+                    st.divider()
+                    
+                    # Position controls
+                    st.markdown("**Position**")
+                    
+                    # Up
+                    if st.button("⬆️", key="move_up", use_container_width=True, help="Move up 3%"):
                         st.session_state.move_offset_y = getattr(st.session_state, 'move_offset_y', 0) - 3
-                
-                # Left, Position, Right
-                col_dir1, col_dir2, col_dir3 = st.columns([1, 1, 1], gap="small")
-                with col_dir1:
-                    if st.button("⬅️ LEFT", key="move_left", help="Move crop area left by 3%", use_container_width=True):
-                        st.session_state.move_offset_x = getattr(st.session_state, 'move_offset_x', 0) - 3
-                with col_dir2:
+                    
+                    # Left/Right
+                    dir_col1, dir_col2 = st.columns(2, gap="small")
+                    with dir_col1:
+                        if st.button("⬅️", key="move_left", use_container_width=True, help="Move left 3%"):
+                            st.session_state.move_offset_x = getattr(st.session_state, 'move_offset_x', 0) - 3
+                    with dir_col2:
+                        if st.button("➡️", key="move_right", use_container_width=True, help="Move right 3%"):
+                            st.session_state.move_offset_x = getattr(st.session_state, 'move_offset_x', 0) + 3
+                    
+                    # Down
+                    if st.button("⬇️", key="move_down", use_container_width=True, help="Move down 3%"):
+                        st.session_state.move_offset_y = getattr(st.session_state, 'move_offset_y', 0) + 3
+                    
                     move_x = getattr(st.session_state, 'move_offset_x', 0)
                     move_y = getattr(st.session_state, 'move_offset_y', 0)
-                    st.metric("Position", f"({move_x:+d}%, {move_y:+d}%)")
-                with col_dir3:
-                    if st.button("RIGHT ➡️", key="move_right", help="Move crop area right by 3%", use_container_width=True):
-                        st.session_state.move_offset_x = getattr(st.session_state, 'move_offset_x', 0) + 3
-                
-                # Down button
-                col_down1, col_down2, col_down3 = st.columns([1, 1, 1])
-                with col_down2:
-                    if st.button("⬇️ DOWN", key="move_down", help="Move crop area down by 3%", use_container_width=True):
-                        st.session_state.move_offset_y = getattr(st.session_state, 'move_offset_y', 0) + 3
-                
-                # Reset position button
-                if st.button("🔄 Reset Position", key="reset_pos", help="Reset position to center", use_container_width=True):
-                    st.session_state.move_offset_x = 0
-                    st.session_state.move_offset_y = 0
-                
-                # Boundary sliders
-                st.markdown("---")
-                st.markdown("#### 📐 Fine-Tune Boundaries")
-                st.markdown("*Adjust the precise crop boundaries with sliders*")
-                
-                col1, col2, col3, col4 = st.columns(4, gap="small")
-                with col1:
-                    crop_top_pct = st.slider(
-                        "Top (%)",
-                        0, 50, default_top, 1,
-                        key="manual_crop_top",
-                        help="Distance from top of image"
-                    )
-                with col2:
-                    crop_bottom_pct = st.slider(
-                        "Bottom (%)",
-                        crop_top_pct + 30, 100, default_bottom, 1,
-                        key="manual_crop_bottom",
-                        help="Distance from top of image"
-                    )
-                with col3:
-                    crop_left_pct = st.slider(
-                        "Left (%)",
-                        0, 40, default_left, 1,
-                        key="manual_crop_left",
-                        help="Distance from left of image"
-                    )
-                with col4:
-                    crop_right_pct = st.slider(
-                        "Right (%)",
-                        crop_left_pct + 40, 100, default_right, 1,
-                        key="manual_crop_right",
-                        help="Distance from left of image"
-                    )
+                    st.metric("", f"({move_x:+d}%, {move_y:+d}%)", delta=None, label_visibility="collapsed")
+                    
+                    if st.button("Reset Pos", key="reset_pos", use_container_width=True, help="Reset to center"):
+                        st.session_state.move_offset_x = 0
+                        st.session_state.move_offset_y = 0
                 
                 # Apply scale factor from +/- buttons
                 scale_factor = getattr(st.session_state, 'scale_factor', 1.0)
