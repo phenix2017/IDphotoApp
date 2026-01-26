@@ -185,7 +185,7 @@ def build_print_sheet(
     photo: Image.Image,
     layout: LayoutSpec,
     dpi: int,
-    margin_in: float = 0.1,
+    margin_in: float = 0.25,
     spacing_in: float = 0.05,
     copies: int = 6,
 ) -> Image.Image:
@@ -195,7 +195,7 @@ def build_print_sheet(
         photo: Photo to tile
         layout: Sheet dimensions (width_in, height_in)
         dpi: Dots per inch resolution
-        margin_in: Margin from edges (default: 0.1")
+        margin_in: Margin from edges (default: 0.25" - standard print margin)
         spacing_in: Space between photos (default: 0.05")
         copies: Number of photos to place
     

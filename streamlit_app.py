@@ -221,9 +221,11 @@ with st.sidebar:
     st.markdown("#### Fine Tuning")
     col_margin, col_spacing = st.columns(2)
     with col_margin:
-        margin = st.number_input("Margin", value=0.1, min_value=0.0, step=0.05, label_visibility="collapsed")
+        st.markdown("Margin (standard: 0.25\")")
+        margin = st.number_input("Margin", value=0.25, min_value=0.0, step=0.05, label_visibility="collapsed", help="Standard print margin: 0.25\" (professional), 0.5\" (safer)")
     with col_spacing:
-        spacing = st.number_input("Spacing", value=0.05, min_value=0.0, step=0.05, label_visibility="collapsed")
+        st.markdown("Spacing")
+        spacing = st.number_input("Spacing", value=0.05, min_value=0.0, step=0.05, label_visibility="collapsed", help="Gap between photos")
     
     st.divider()
     st.markdown("""
