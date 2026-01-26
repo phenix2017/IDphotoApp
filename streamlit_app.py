@@ -557,7 +557,7 @@ if uploaded_file:
                 
                 # Show live preview with crop box overlay
                 st.markdown("### 📸 Live Preview")
-                st.markdown("*Green box shows the area that will be cropped and used as your ID photo*")
+                st.markdown("*Green box shows the area that will be cropped. Guide lines help position key features correctly.*")
                 
                 col_preview1, col_preview2 = st.columns(2)
                 with col_preview1:
@@ -567,12 +567,33 @@ if uploaded_file:
                     # Draw outer rectangle with thick green border
                     cv2.rectangle(img_display, (x1, y1), (x2, y2), (0, 255, 0), 4)
                     
-                    # Add crosshair at center
-                    center_x = (x1 + x2) // 2
-                    center_y = (y1 + y2) // 2
-                    line_len = 30
-                    cv2.line(img_display, (center_x - line_len, center_y), (center_x + line_len, center_y), (0, 255, 0), 2)
-                    cv2.line(img_display, (center_x, center_y - line_len), (center_x, center_y + line_len), (0, 255, 0), 2)
+                    # Add guide lines for correct positioning
+                    crop_h = y2 - y1
+                    crop_w = x2 - x1
+                    
+                    # Eye line (should be ~60% from bottom in most specs)
+                    eye_line_y = y1 + int(crop_h * (1 - specs[country].eye_line_from_bottom_ratio))
+                    cv2.line(img_display, (x1, eye_line_y), (x2, eye_line_y), (255, 100, 255), 2)  # Magenta
+                    cv2.putText(img_display, "Eyes", (x1 + 5, eye_line_y - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 100, 255), 2)
+                    
+                    # Forehead top guide (10% of height below top)
+                    forehead_guide = y1 + int(crop_h * 0.1)
+                    cv2.line(img_display, (x1, forehead_guide), (x2, forehead_guide), (100, 255, 255), 1)  # Cyan
+                    cv2.putText(img_display, "Forehead", (x1 + 5, forehead_guide - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (100, 255, 255), 1)
+                    
+                    # Shoulders/chest area (bottom 20%)
+                    shoulders_guide = y2 - int(crop_h * 0.2)
+                    cv2.line(img_display, (x1, shoulders_guide), (x2, shoulders_guide), (100, 200, 100), 1)  # Light green
+                    cv2.putText(img_display, "Shoulders", (x1 + 5, shoulders_guide + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (100, 200, 100), 1)
+                    
+                    # Head height guide (middle section)
+                    head_top_guide = y1 + int(crop_h * 0.05)
+                    head_bottom_guide = y1 + int(crop_h * (1 - specs[country].eye_line_from_bottom_ratio + specs[country].head_height_ratio / 2))
+                    
+                    # Add center vertical line
+                    center_x_line = (x1 + x2) // 2
+                    cv2.line(img_display, (center_x_line, y1), (center_x_line, y2), (200, 200, 0), 1)  # Yellow
+                    cv2.putText(img_display, "Center", (center_x_line + 5, y1 + 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 0), 1)
                     
                     # Add corner markers
                     corner_size = 20
@@ -581,19 +602,36 @@ if uploaded_file:
                     
                     img_display_rgb = cv2.cvtColor(img_display, cv2.COLOR_BGR2RGB)
                     st.image(Image.fromarray(img_display_rgb), 
-                            caption=f"Original Image - Crop Region Highlighted (Green Box)",
+                            caption=f"Original Image - Crop with Position Guides",
                             use_container_width=True)
                     
                     # Show crop dimensions below image
-                    crop_w = x2 - x1
-                    crop_h = y2 - y1
                     st.caption(f"📐 Crop: {crop_w}×{crop_h} px | Zoom: {zoom_level}% | Scale: {scale_factor:.0%} | Pos: ({move_offset_x:+d}%, {move_offset_y:+d}%)")
                 
                 with col_preview2:
-                    # Display final photo without text overlay (now using manual adjustment)
+                    # Display final photo with feature guides
                     final_photo_display = cv2.cvtColor(cropped_bgr, cv2.COLOR_BGR2RGB)
-                    st.image(Image.fromarray(final_photo_display), 
-                            caption=f"Final ID Photo",
+                    
+                    # Add guide lines to final photo as well
+                    final_display = final_photo_display.copy()
+                    final_h, final_w = final_display.shape[:2]
+                    
+                    # Eye line guide
+                    eye_line_final = int(final_h * (1 - specs[country].eye_line_from_bottom_ratio))
+                    cv2.line(final_display, (0, eye_line_final), (final_w, eye_line_final), (255, 100, 255), 1)
+                    cv2.putText(final_display, "Eyes", (5, eye_line_final - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 100, 255), 1)
+                    
+                    # Forehead guide
+                    forehead_final = int(final_h * 0.1)
+                    cv2.line(final_display, (0, forehead_final), (final_w, forehead_final), (100, 255, 255), 1)
+                    
+                    # Shoulders guide
+                    shoulders_final = int(final_h * 0.8)
+                    cv2.line(final_display, (0, shoulders_final), (final_w, shoulders_final), (100, 200, 100), 1)
+                    cv2.putText(final_display, "Mid-Chest", (5, shoulders_final + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (100, 200, 100), 1)
+                    
+                    st.image(Image.fromarray(final_display), 
+                            caption=f"Final ID Photo with Position Guides",
                             use_container_width=True)
                     st.caption(f"✓ {w_px}×{h_px} px | {specs[country].width_in}\" × {specs[country].height_in}\" @ {dpi} DPI")
                 
