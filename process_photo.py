@@ -259,6 +259,16 @@ def build_print_sheet(
             x = left_margin + col * (photo_w + spacing)
             y = top_margin + row * (photo_h + spacing)
             sheet.paste(photo, (x, y))
+            
+            # Draw frame/border around the photo
+            frame_color = (150, 150, 150)  # Dark gray frame
+            frame_width = 2
+            draw.rectangle(
+                [(x, y), (x + photo_w - 1, y + photo_h - 1)],
+                outline=frame_color,
+                width=frame_width
+            )
+            
             placed += 1
         if placed >= copies:
             break
