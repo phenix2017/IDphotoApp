@@ -332,6 +332,37 @@ if uploaded_file:
                 with col_scale5:
                     st.write("")  # Spacer
                 
+                # Direction buttons to move crop area
+                st.markdown("**🎯 Move Crop Area:**")
+                col_dir1, col_dir2, col_dir3, col_dir4, col_dir5, col_dir6, col_dir7, col_dir8, col_dir9 = st.columns(9)
+                
+                with col_dir1:
+                    st.write("")  # Spacer
+                with col_dir2:
+                    if st.button("⬆️ Up", key="move_up", help="Move crop area up by 3%"):
+                        st.session_state.move_offset_y = getattr(st.session_state, 'move_offset_y', 0) - 3
+                with col_dir3:
+                    st.write("")  # Spacer
+                with col_dir4:
+                    if st.button("⬅️ Left", key="move_left", help="Move crop area left by 3%"):
+                        st.session_state.move_offset_x = getattr(st.session_state, 'move_offset_x', 0) - 3
+                with col_dir5:
+                    move_x = getattr(st.session_state, 'move_offset_x', 0)
+                    move_y = getattr(st.session_state, 'move_offset_y', 0)
+                    st.metric("Position", f"({move_x:+d}%, {move_y:+d}%)")
+                with col_dir6:
+                    if st.button("➡️ Right", key="move_right", help="Move crop area right by 3%"):
+                        st.session_state.move_offset_x = getattr(st.session_state, 'move_offset_x', 0) + 3
+                with col_dir7:
+                    st.write("")  # Spacer
+                with col_dir8:
+                    if st.button("⬇️ Down", key="move_down", help="Move crop area down by 3%"):
+                        st.session_state.move_offset_y = getattr(st.session_state, 'move_offset_y', 0) + 3
+                with col_dir9:
+                    if st.button("🔄 Reset Pos", key="reset_pos", help="Reset position to center"):
+                        st.session_state.move_offset_x = 0
+                        st.session_state.move_offset_y = 0
+                
                 col1, col2, col3, col4 = st.columns(4)
                 with col1:
                     crop_top_pct = st.slider(
@@ -366,6 +397,10 @@ if uploaded_file:
                 scale_factor = getattr(st.session_state, 'scale_factor', 1.0)
                 scale_factor = max(0.5, min(2.0, scale_factor))  # Clamp between 0.5x and 2.0x
                 
+                # Get movement offsets from directional buttons
+                move_offset_x = getattr(st.session_state, 'move_offset_x', 0)
+                move_offset_y = getattr(st.session_state, 'move_offset_y', 0)
+                
                 # Calculate scaled crop boundaries
                 # Center the crop area and scale it
                 center_y = (crop_top_pct + crop_bottom_pct) / 2
@@ -378,13 +413,17 @@ if uploaded_file:
                 scaled_height = height_range * scale_factor
                 scaled_width = width_range * scale_factor
                 
-                # Keep within bounds
-                crop_top_pct_scaled = max(0, min(50, center_y - scaled_height / 2))
-                crop_bottom_pct_scaled = min(100, max(crop_top_pct_scaled + 30, center_y + scaled_height / 2))
-                crop_left_pct_scaled = max(0, min(40, center_x - scaled_width / 2))
-                crop_right_pct_scaled = min(100, max(crop_left_pct_scaled + 40, center_x + scaled_width / 2))
+                # Apply movement offset to center
+                center_y_moved = center_y + move_offset_y
+                center_x_moved = center_x + move_offset_x
                 
-                # Apply manual crop on zoomed image with scaled boundaries
+                # Keep within bounds
+                crop_top_pct_scaled = max(0, min(50, center_y_moved - scaled_height / 2))
+                crop_bottom_pct_scaled = min(100, max(crop_top_pct_scaled + 30, center_y_moved + scaled_height / 2))
+                crop_left_pct_scaled = max(0, min(40, center_x_moved - scaled_width / 2))
+                crop_right_pct_scaled = min(100, max(crop_left_pct_scaled + 40, center_x_moved + scaled_width / 2))
+                
+                # Apply manual crop on zoomed image with scaled and moved boundaries
                 y1 = int(h_zoom * crop_top_pct_scaled / 100)
                 y2 = int(h_zoom * crop_bottom_pct_scaled / 100)
                 x1 = int(w_zoom * crop_left_pct_scaled / 100)
@@ -427,9 +466,9 @@ if uploaded_file:
                     # Add crop dimensions overlay on image
                     crop_w = x2 - x1
                     crop_h = y2 - y1
-                    dim_text = f"CROP: {crop_w}×{crop_h} px (Zoom: {zoom_level}%, Scale: {scale_factor:.0%})"
+                    dim_text = f"CROP: {crop_w}×{crop_h} px (Z:{zoom_level}%, S:{scale_factor:.0%}, Pos:{move_offset_x:+d}%,{move_offset_y:+d}%)"
                     cv2.putText(img_display, dim_text, (x1 + 10, y1 - 10), 
-                               cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+                               cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 1)
                     
                     img_display_rgb = cv2.cvtColor(img_display, cv2.COLOR_BGR2RGB)
                     st.image(Image.fromarray(img_display_rgb), 
