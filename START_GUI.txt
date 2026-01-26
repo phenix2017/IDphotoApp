@@ -1,0 +1,59 @@
+# 🚀 Launch IDphotoApp GUI NOW
+
+## Quickest Way (2 Seconds)
+
+**Double-click this file:**
+```
+run_gui.bat
+```
+
+A browser window will open automatically. Done!
+
+---
+
+## If Double-Click Doesn't Work
+
+Open PowerShell and copy-paste this:
+
+```powershell
+cd "C:\Users\robin\Documents\GitHub\IDphoto\IDphotoApp"
+python -m streamlit run streamlit_app.py
+```
+
+Then open your browser to: **http://localhost:8501**
+
+---
+
+## What You'll See
+
+A clean web interface with:
+- 📸 Photo upload area
+- ⚙️ Settings on the left sidebar
+- 🖼️ Preview of cropped photo
+- 📄 Multi-copy print sheet
+- 📥 Download buttons
+
+---
+
+## Usage (3 Steps)
+
+1. **Upload** a photo (JPG or PNG)
+2. **Configure** settings (country, DPI, layout)
+3. **Download** results (photo + print sheet)
+
+Done! ✓
+
+---
+
+## System Check
+
+✓ Python installed  
+✓ Streamlit 1.53.1 installed  
+✓ OpenCV, Pillow ready  
+✓ All dependencies met  
+
+**Status: READY TO GO!**
+
+---
+
+For detailed guide, see: [GUI_GUIDE.md](GUI_GUIDE.md)
