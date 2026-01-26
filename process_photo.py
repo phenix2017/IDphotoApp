@@ -228,15 +228,35 @@ def build_print_sheet(
     left_margin = margin + (available_width - total_photos_width) // 2
     top_margin = margin + (available_height - total_photos_height) // 2
     
+    # Create drawing context for guide lines
+    from PIL import ImageDraw
+    draw = ImageDraw.Draw(sheet)
+    guide_color = (200, 200, 200)  # Light gray guide lines
+    guide_width = 2
+    
     placed = 0
     for row in range(max_rows):
         for col in range(max_cols):
             if placed >= copies:
-                return sheet
+                break
             x = left_margin + col * (photo_w + spacing)
             y = top_margin + row * (photo_h + spacing)
             sheet.paste(photo, (x, y))
             placed += 1
+        if placed >= copies:
+            break
+
+    # Draw vertical guide lines between photos (after photos are placed)
+    for col in range(1, max_cols):
+        x = left_margin + col * (photo_w + spacing) - spacing // 2
+        draw.line([(x, top_margin), (x, top_margin + max_rows * photo_h + (max_rows - 1) * spacing)],
+                  fill=guide_color, width=guide_width)
+
+    # Draw horizontal guide lines between photos
+    for row in range(1, max_rows):
+        y = top_margin + row * (photo_h + spacing) - spacing // 2
+        draw.line([(left_margin, y), (left_margin + max_cols * photo_w + (max_cols - 1) * spacing, y)],
+                  fill=guide_color, width=guide_width)
 
     return sheet
 
