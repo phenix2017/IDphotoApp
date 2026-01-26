@@ -422,89 +422,55 @@ if uploaded_file:
                 h_zoom, w_zoom = image_zoomed.shape[:2]
                 
                 # Create a compact control panel
-                st.markdown("### 🎯 Crop Controls")
+                st.markdown("### 🎯 Crop Controls - Adjust to Tolerance Zones")
                 
-                # Main layout: sliders on left, buttons on right
-                control_col1, control_col2 = st.columns([3, 1], gap="medium")
+                # Main layout: key parameters only
+                st.markdown("*Use these controls to position your photo within the tolerance zones (colored bands)*")
                 
-                with control_col1:
-                    st.markdown("#### 📐 Boundary Sliders")
-                    col1, col2, col3, col4 = st.columns(4, gap="small")
-                    with col1:
-                        crop_top_pct = st.slider(
-                            "Top",
-                            0, 50, default_top, 1,
-                            key="manual_crop_top",
-                            help="Distance from top"
-                        )
-                    with col2:
-                        crop_bottom_pct = st.slider(
-                            "Bottom",
-                            crop_top_pct + 30, 100, default_bottom, 1,
-                            key="manual_crop_bottom",
-                            help="Distance from top"
-                        )
-                    with col3:
-                        crop_left_pct = st.slider(
-                            "Left",
-                            0, 40, default_left, 1,
-                            key="manual_crop_left",
-                            help="Distance from left"
-                        )
-                    with col4:
-                        crop_right_pct = st.slider(
-                            "Right",
-                            crop_left_pct + 40, 100, default_right, 1,
-                            key="manual_crop_right",
-                            help="Distance from left"
-                        )
+                # Size and Position controls
+                size_pos_col1, size_pos_col2 = st.columns(2, gap="medium")
                 
-                with control_col2:
-                    st.markdown("#### 🎛️ Quick Adjust")
-                    
-                    # Size controls
-                    st.markdown("**Size**")
-                    size_col1, size_col2 = st.columns(2, gap="small")
-                    with size_col1:
-                        if st.button("➖", key="shrink_crop", help="Shrink 15%", use_container_width=True):
+                with size_pos_col1:
+                    st.markdown("#### 📏 Crop Size")
+                    size_btn_col1, size_btn_col2 = st.columns(2, gap="small")
+                    with size_btn_col1:
+                        if st.button("➖ Shrink", key="shrink_crop", help="Shrink crop area by 15%", use_container_width=True):
                             st.session_state.scale_factor = getattr(st.session_state, 'scale_factor', 1.0) - 0.15
-                    with size_col2:
-                        if st.button("➕", key="enlarge_crop", help="Enlarge 15%", use_container_width=True):
+                    with size_btn_col2:
+                        if st.button("➕ Enlarge", key="enlarge_crop", help="Enlarge crop area by 15%", use_container_width=True):
                             st.session_state.scale_factor = getattr(st.session_state, 'scale_factor', 1.0) + 0.15
                     
                     scale_display = getattr(st.session_state, 'scale_factor', 1.0)
-                    st.metric("", f"{scale_display:.0%}", delta=None, label_visibility="collapsed")
+                    st.metric("Scale Factor", f"{scale_display:.0%}", delta=None)
                     
-                    if st.button("Reset Size", key="reset_crop", use_container_width=True, help="Reset to default"):
+                    if st.button("🔄 Reset Size", key="reset_crop", use_container_width=True, help="Reset to default size"):
                         st.session_state.scale_factor = 1.0
+                
+                with size_pos_col2:
+                    st.markdown("#### ➡️ Crop Position")
                     
-                    st.divider()
-                    
-                    # Position controls
-                    st.markdown("**Position**")
-                    
-                    # Up
-                    if st.button("⬆️", key="move_up", use_container_width=True, help="Move up 2%"):
+                    # Up button
+                    if st.button("⬆️ UP", key="move_up", use_container_width=True, help="Move up by 2%"):
                         st.session_state.move_offset_y = getattr(st.session_state, 'move_offset_y', 0) - 2
                     
-                    # Left/Right
+                    # Left/Right row
                     dir_col1, dir_col2 = st.columns(2, gap="small")
                     with dir_col1:
-                        if st.button("⬅️", key="move_left", use_container_width=True, help="Move left 2%"):
+                        if st.button("⬅️ LEFT", key="move_left", use_container_width=True, help="Move left by 2%"):
                             st.session_state.move_offset_x = getattr(st.session_state, 'move_offset_x', 0) - 2
                     with dir_col2:
-                        if st.button("➡️", key="move_right", use_container_width=True, help="Move right 2%"):
+                        if st.button("RIGHT ➡️", key="move_right", use_container_width=True, help="Move right by 2%"):
                             st.session_state.move_offset_x = getattr(st.session_state, 'move_offset_x', 0) + 2
                     
-                    # Down
-                    if st.button("⬇️", key="move_down", use_container_width=True, help="Move down 2%"):
+                    # Down button
+                    if st.button("⬇️ DOWN", key="move_down", use_container_width=True, help="Move down by 2%"):
                         st.session_state.move_offset_y = getattr(st.session_state, 'move_offset_y', 0) + 2
                     
                     move_x = getattr(st.session_state, 'move_offset_x', 0)
                     move_y = getattr(st.session_state, 'move_offset_y', 0)
-                    st.metric("", f"({move_x:+d}%, {move_y:+d}%)", delta=None, label_visibility="collapsed")
+                    st.metric("Position", f"({move_x:+d}%, {move_y:+d}%)", delta=None)
                     
-                    if st.button("Reset Pos", key="reset_pos", use_container_width=True, help="Reset to center"):
+                    if st.button("🔄 Reset Pos", key="reset_pos", use_container_width=True, help="Reset to center"):
                         st.session_state.move_offset_x = 0
                         st.session_state.move_offset_y = 0
                 
@@ -515,6 +481,13 @@ if uploaded_file:
                 # Get movement offsets from directional buttons
                 move_offset_x = getattr(st.session_state, 'move_offset_x', 0)
                 move_offset_y = getattr(st.session_state, 'move_offset_y', 0)
+                
+                # Use default crop boundaries based on spec
+                spec = specs[country]
+                crop_top_pct = max(5, int((1 - spec.eye_line_from_bottom_ratio - spec.head_height_ratio/2) * 100))
+                crop_bottom_pct = min(95, int((1 - spec.eye_line_from_bottom_ratio + spec.head_height_ratio/2) * 100))
+                crop_left_pct = 15
+                crop_right_pct = 85
                 
                 # Calculate scaled crop boundaries
                 # Center the crop area and scale it
@@ -547,7 +520,6 @@ if uploaded_file:
                 manual_cropped_bgr = image_zoomed[y1:y2, x1:x2]
                 
                 # Resize to spec dimensions
-                spec = specs[country]
                 w_px, h_px = int(round(spec.width_in * dpi)), int(round(spec.height_in * dpi))
                 manual_cropped_bgr = cv2.resize(manual_cropped_bgr, (w_px, h_px), interpolation=cv2.INTER_CUBIC)
                 
