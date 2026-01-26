@@ -32,8 +32,75 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+# Custom CSS for better styling
+st.markdown("""
+<style>
+    /* Main container padding */
+    .main {
+        padding: 1rem;
+    }
+    
+    /* Header styling */
+    h1 {
+        text-align: center;
+        color: #1f77d4;
+        padding-bottom: 1rem;
+        border-bottom: 3px solid #1f77d4;
+        margin-bottom: 1.5rem;
+    }
+    
+    h2 {
+        color: #1f77d4;
+        padding-top: 0.5rem;
+        border-left: 5px solid #1f77d4;
+        padding-left: 1rem;
+        margin-top: 1.5rem;
+    }
+    
+    h3 {
+        color: #0a4a90;
+        margin-top: 1rem;
+    }
+    
+    /* Expander styling */
+    .streamlit-expanderHeader {
+        background-color: #f0f5ff;
+        border-radius: 0.5rem;
+    }
+    
+    /* Button styling */
+    button {
+        border-radius: 0.5rem;
+        font-weight: 600;
+    }
+    
+    /* Info/Warning boxes */
+    .stInfo, .stWarning, .stSuccess {
+        border-radius: 0.5rem;
+        padding: 1rem;
+    }
+    
+    /* Tabs styling */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 0.5rem;
+    }
+    
+    /* Metric styling */
+    .metric {
+        background-color: #f8f9fa;
+        border-radius: 0.5rem;
+        padding: 1rem;
+    }
+</style>
+""", unsafe_allow_html=True)
+
 st.title("📸 ID Photo Processor")
-st.markdown("Auto-crop and process identity photos for passport compliance")
+st.markdown("""
+<div style="text-align: center; color: #666; margin-bottom: 2rem;">
+    <p><strong>Professional Identity Photo Processing</strong></p>
+    <p style="font-size: 0.9rem;">Auto-crop, background replacement & print sheet generation</p>
+</div>
+""", unsafe_allow_html=True)
 
 # Load specs early
 specs = load_specs(Path("specs.json"))
@@ -112,52 +179,80 @@ with st.expander("📐 Profile Requirements & Visual Guide", expanded=False):
 
 # Sidebar controls
 with st.sidebar:
-    st.header("Settings")
+    st.markdown("""
+    <div style="text-align: center; padding-bottom: 1rem;">
+        <h2 style="margin: 0; border: none; padding: 0;">⚙️ Settings</h2>
+    </div>
+    """, unsafe_allow_html=True)
     
     # Country selection
+    st.markdown("### 🌍 Country Selection")
     country = st.selectbox(
-        "Select Country",
+        "Select your country",
         options=list(specs.keys()),
-        format_func=lambda x: f"{x} - {specs[x].name}",
-        help="Choose the country specification for your ID photo"
+        format_func=lambda x: f"🇺🇸 {x} - {specs[x].name}" if x == "US" else f"🇨🇦 {x} - {specs[x].name}" if x == "CA" else f"🇬🇧 {x} - {specs[x].name}",
+        help="Choose the country specification for your ID photo",
+        label_visibility="collapsed"
     )
     
     # Photo settings
-    st.subheader("Photo Settings")
-    replace_bg = st.checkbox("Replace Background", value=False)
-    dpi = st.slider("DPI (Quality)", min_value=100, max_value=600, value=300, step=50)
+    st.markdown("### 📷 Photo Settings")
+    replace_bg = st.checkbox("🎨 Replace Background", value=False, help="Automatically remove and replace the background")
+    dpi = st.slider("🎯 Quality (DPI)", min_value=100, max_value=600, value=300, step=50, help="Higher DPI = Better print quality")
+    
+    st.divider()
     
     # Layout settings
-    st.subheader("Print Layout")
-    layout_preset = st.radio("Layout Size", ["4x6", "6x6", "Custom"])
+    st.markdown("### 📄 Print Layout")
+    layout_preset = st.radio("Layout Size", ["4x6", "6x6", "Custom"], help="Select your print paper size")
     
     if layout_preset == "Custom":
-        layout_w = st.number_input("Width (inches)", value=4.0, min_value=1.0, step=0.5)
-        layout_h = st.number_input("Height (inches)", value=6.0, min_value=1.0, step=0.5)
+        col_custom1, col_custom2 = st.columns(2)
+        with col_custom1:
+            layout_w = st.number_input("Width (in)", value=4.0, min_value=1.0, step=0.5)
+        with col_custom2:
+            layout_h = st.number_input("Height (in)", value=6.0, min_value=1.0, step=0.5)
         layout = LayoutSpec(width_in=layout_w, height_in=layout_h)
     else:
         layout = parse_layout(layout_preset)
     
-    copies = st.slider("Number of Copies", min_value=1, max_value=20, value=6)
-    margin = st.number_input("Margin (inches)", value=0.1, min_value=0.0, step=0.05)
-    spacing = st.number_input("Spacing (inches)", value=0.1, min_value=0.0, step=0.05)
+    copies = st.slider("📋 Number of Copies", min_value=1, max_value=20, value=6, help="How many photos per sheet")
+    
+    st.markdown("#### Fine Tuning")
+    col_margin, col_spacing = st.columns(2)
+    with col_margin:
+        margin = st.number_input("Margin", value=0.1, min_value=0.0, step=0.05, label_visibility="collapsed")
+    with col_spacing:
+        spacing = st.number_input("Spacing", value=0.05, min_value=0.0, step=0.05, label_visibility="collapsed")
+    
+    st.divider()
+    st.markdown("""
+    <div style="text-align: center; color: #888; font-size: 0.85rem; padding: 1rem 0;">
+        <p>💡 <strong>Tip:</strong> Manual mode lets you fine-tune the crop area</p>
+    </div>
+    """, unsafe_allow_html=True)
 
 # Main content area
-col1, col2 = st.columns(2)
+st.markdown("---")
+col1, col2 = st.columns([2, 1], gap="large")
 
 with col1:
-    st.subheader("Upload Photo")
+    st.markdown("### 📤 Upload Your Photo")
     uploaded_file = st.file_uploader(
         "Choose an image file",
         type=["jpg", "jpeg", "png"],
-        help="Upload a clear, front-facing photo"
+        help="Upload a clear, front-facing photo (JPG or PNG)",
+        label_visibility="collapsed"
     )
 
 with col2:
-    st.subheader("Photo Info")
+    st.markdown("### 📊 File Information")
     if uploaded_file:
-        st.info(f"📁 File: {uploaded_file.name}")
-        st.info(f"📏 Size: {uploaded_file.size:,} bytes")
+        st.success(f"✓ File uploaded: **{uploaded_file.name}**")
+        file_size_mb = uploaded_file.size / (1024 * 1024)
+        st.info(f"📁 Size: {file_size_mb:.2f} MB")
+    else:
+        st.info("👆 Upload a photo to get started")
 
 # Process photo if uploaded
 if uploaded_file:
@@ -170,12 +265,18 @@ if uploaded_file:
             st.error("❌ Could not read image. Please upload a valid image file.")
         else:
             # Show processing mode selection
-            processing_mode = st.radio(
-                "Processing Mode",
-                ["Automatic", "Manual Adjustment"],
-                horizontal=True,
-                help="Automatic: AI detects face. Manual: You adjust the crop area."
-            )
+            st.markdown("---")
+            st.markdown("### 🎯 Processing Mode")
+            
+            mode_col1, mode_col2 = st.columns(2)
+            with mode_col1:
+                if st.button("⚡ Automatic (AI Detection)", use_container_width=True, key="auto_mode_btn"):
+                    st.session_state.processing_mode = "Automatic"
+            with mode_col2:
+                if st.button("✏️ Manual (Fine-Tune)", use_container_width=True, key="manual_mode_btn"):
+                    st.session_state.processing_mode = "Manual Adjustment"
+            
+            processing_mode = st.session_state.get("processing_mode", "Automatic")
             
             with st.spinner("Processing..."):
                 # Replace background if selected
@@ -194,10 +295,17 @@ if uploaded_file:
             
             # Manual adjustment mode
             if processing_mode == "Manual Adjustment":
-                st.subheader("📐 Manual Crop Adjustment - Head & Shoulder Profile")
+                st.markdown("---")
                 st.markdown("""
-                **Objective**: Adjust the green crop box to frame head and shoulders correctly.  
-                Use the sliders below to position the crop area precisely.
+                <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 1.5rem; border-radius: 0.5rem; color: white; text-align: center;">
+                    <h2 style="color: white; border: none; margin-top: 0;">📐 Manual Crop Adjustment</h2>
+                    <p style="color: #f0f0f0; margin: 0;">Head & Shoulder Profile Framing</p>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                st.markdown("""
+                **Your Goal**: Position the crop frame to capture head and shoulders correctly.  
+                Use the controls below to fine-tune the crop area to perfection.
                 """)
                 
                 # Show visual guide and instructions
@@ -284,19 +392,19 @@ if uploaded_file:
                     default_left, default_right = 15, 85
                 
                 # Zoom control
-                st.markdown("### 🔍 Zoom Control (50% = Zoom Out, 200% = Zoom In)")
-                col_zoom1, col_zoom2, col_zoom3 = st.columns([2, 1, 1])
-                with col_zoom1:
+                st.markdown("#### 🔍 Zoom Level")
+                zoom_col1, zoom_col2, zoom_col3 = st.columns([3, 1, 1], gap="small")
+                with zoom_col1:
                     zoom_level = st.slider(
                         "Zoom Level",
                         min_value=50, max_value=200, value=100, step=5,
                         key="zoom_slider",
-                        help="Zoom percentage: 50% = zoomed out, 200% = zoomed in"
+                        help="50% = zoomed out, 200% = zoomed in"
                     )
-                with col_zoom2:
-                    st.metric("Current Zoom", f"{zoom_level}%")
-                with col_zoom3:
-                    st.info(f"📏 {zoom_level/100:.1f}x")
+                with zoom_col2:
+                    st.metric("", f"{zoom_level}%", delta=None)
+                with zoom_col3:
+                    st.metric("", f"{zoom_level/100:.1f}x", delta=None)
                 
                 # Apply zoom to image - show preview of zoom
                 if zoom_level != 100:
@@ -315,82 +423,90 @@ if uploaded_file:
                 st.markdown("*Use sliders OR +/- buttons to position the crop frame around the head and shoulders*")
                 
                 # Scale buttons (+ to enlarge crop area, - to shrink)
-                st.markdown("**🔄 Scale Crop Area:**")
-                col_scale1, col_scale2, col_scale3, col_scale4, col_scale5 = st.columns(5)
+                st.markdown("#### 📏 Crop Size")
+                col_scale1, col_scale2, col_scale3, col_scale4, col_scale5 = st.columns(5, gap="small")
                 with col_scale1:
-                    if st.button("➖ Shrink", key="shrink_crop", help="Shrink the crop area by 15%"):
+                    if st.button("➖ Shrink", key="shrink_crop", help="Shrink the crop area by 15%", use_container_width=True):
                         st.session_state.scale_factor = getattr(st.session_state, 'scale_factor', 1.0) - 0.15
                 with col_scale2:
                     scale_display = getattr(st.session_state, 'scale_factor', 1.0)
-                    st.metric("Scale", f"{scale_display:.0%}")
+                    st.metric("Size", f"{scale_display:.0%}")
                 with col_scale3:
-                    if st.button("➕ Enlarge", key="enlarge_crop", help="Enlarge the crop area by 15%"):
+                    if st.button("➕ Enlarge", key="enlarge_crop", help="Enlarge the crop area by 15%", use_container_width=True):
                         st.session_state.scale_factor = getattr(st.session_state, 'scale_factor', 1.0) + 0.15
                 with col_scale4:
-                    if st.button("🔄 Reset", key="reset_crop", help="Reset to default size"):
+                    if st.button("🔄 Reset", key="reset_crop", help="Reset to default size", use_container_width=True):
                         st.session_state.scale_factor = 1.0
                 with col_scale5:
                     st.write("")  # Spacer
                 
                 # Direction buttons to move crop area
-                st.markdown("**🎯 Move Crop Area:**")
-                col_dir1, col_dir2, col_dir3, col_dir4, col_dir5, col_dir6, col_dir7, col_dir8, col_dir9 = st.columns(9)
+                st.markdown("#### ➡️ Crop Position")
+                st.markdown("*Click buttons to move the crop frame*")
                 
-                with col_dir1:
-                    st.write("")  # Spacer
-                with col_dir2:
-                    if st.button("⬆️ Up", key="move_up", help="Move crop area up by 3%"):
+                # Up button
+                col_up1, col_up2, col_up3 = st.columns([1, 1, 1])
+                with col_up2:
+                    if st.button("⬆️ UP", key="move_up", help="Move crop area up by 3%", use_container_width=True):
                         st.session_state.move_offset_y = getattr(st.session_state, 'move_offset_y', 0) - 3
-                with col_dir3:
-                    st.write("")  # Spacer
-                with col_dir4:
-                    if st.button("⬅️ Left", key="move_left", help="Move crop area left by 3%"):
+                
+                # Left, Position, Right
+                col_dir1, col_dir2, col_dir3 = st.columns([1, 1, 1], gap="small")
+                with col_dir1:
+                    if st.button("⬅️ LEFT", key="move_left", help="Move crop area left by 3%", use_container_width=True):
                         st.session_state.move_offset_x = getattr(st.session_state, 'move_offset_x', 0) - 3
-                with col_dir5:
+                with col_dir2:
                     move_x = getattr(st.session_state, 'move_offset_x', 0)
                     move_y = getattr(st.session_state, 'move_offset_y', 0)
                     st.metric("Position", f"({move_x:+d}%, {move_y:+d}%)")
-                with col_dir6:
-                    if st.button("➡️ Right", key="move_right", help="Move crop area right by 3%"):
+                with col_dir3:
+                    if st.button("RIGHT ➡️", key="move_right", help="Move crop area right by 3%", use_container_width=True):
                         st.session_state.move_offset_x = getattr(st.session_state, 'move_offset_x', 0) + 3
-                with col_dir7:
-                    st.write("")  # Spacer
-                with col_dir8:
-                    if st.button("⬇️ Down", key="move_down", help="Move crop area down by 3%"):
-                        st.session_state.move_offset_y = getattr(st.session_state, 'move_offset_y', 0) + 3
-                with col_dir9:
-                    if st.button("🔄 Reset Pos", key="reset_pos", help="Reset position to center"):
-                        st.session_state.move_offset_x = 0
-                        st.session_state.move_offset_y = 0
                 
-                col1, col2, col3, col4 = st.columns(4)
+                # Down button
+                col_down1, col_down2, col_down3 = st.columns([1, 1, 1])
+                with col_down2:
+                    if st.button("⬇️ DOWN", key="move_down", help="Move crop area down by 3%", use_container_width=True):
+                        st.session_state.move_offset_y = getattr(st.session_state, 'move_offset_y', 0) + 3
+                
+                # Reset position button
+                if st.button("🔄 Reset Position", key="reset_pos", help="Reset position to center", use_container_width=True):
+                    st.session_state.move_offset_x = 0
+                    st.session_state.move_offset_y = 0
+                
+                # Boundary sliders
+                st.markdown("---")
+                st.markdown("#### 📐 Fine-Tune Boundaries")
+                st.markdown("*Adjust the precise crop boundaries with sliders*")
+                
+                col1, col2, col3, col4 = st.columns(4, gap="small")
                 with col1:
                     crop_top_pct = st.slider(
-                        "Top %",
+                        "Top (%)",
                         0, 50, default_top, 1,
                         key="manual_crop_top",
-                        help="% from top of image"
+                        help="Distance from top of image"
                     )
                 with col2:
                     crop_bottom_pct = st.slider(
-                        "Bottom %",
+                        "Bottom (%)",
                         crop_top_pct + 30, 100, default_bottom, 1,
                         key="manual_crop_bottom",
-                        help="% from top of image"
+                        help="Distance from top of image"
                     )
                 with col3:
                     crop_left_pct = st.slider(
-                        "Left %",
+                        "Left (%)",
                         0, 40, default_left, 1,
                         key="manual_crop_left",
-                        help="% from left of image"
+                        help="Distance from left of image"
                     )
                 with col4:
                     crop_right_pct = st.slider(
-                        "Right %",
+                        "Right (%)",
                         crop_left_pct + 40, 100, default_right, 1,
                         key="manual_crop_right",
-                        help="% from left of image"
+                        help="Distance from left of image"
                     )
                 
                 # Apply scale factor from +/- buttons
