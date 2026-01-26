@@ -513,7 +513,7 @@ if uploaded_file:
                 # Check if key features are within acceptable bounds
                 eye_line_y = y1 + int(crop_h * (1 - spec.eye_line_from_bottom_ratio))
                 forehead_y = y1 + int(crop_h * 0.1)
-                shoulders_y = y2 - int(crop_h * 0.2)
+                shoulders_y = y2 - int(crop_h * 0.15)
                 head_top_y = y1 + int(crop_h * 0.05)
                 
                 # Tolerance ranges (±15% of crop area)
@@ -562,7 +562,7 @@ if uploaded_file:
                     cv2.putText(img_display, "Eyes", (x1 + 5, eye_line_y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 0, 255), 1)
                     
                     # Shoulders/chest tolerance zone (bottom area)
-                    shoulders_y = y2 - int(crop_h * 0.2)
+                    shoulders_y = y2 - int(crop_h * 0.15)
                     shoulders_top = shoulders_y - tolerance_px
                     shoulders_bottom = min(y2, shoulders_y + tolerance_px)
                     cv2.line(img_display, (x1, shoulders_top), (x2, shoulders_top), (100, 200, 100), 1)  # Top boundary
