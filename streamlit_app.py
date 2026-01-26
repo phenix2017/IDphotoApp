@@ -284,27 +284,29 @@ if uploaded_file:
                     default_left, default_right = 15, 85
                 
                 # Zoom control
-                st.markdown("### 🔍 Zoom Control")
+                st.markdown("### 🔍 Zoom Control (50% = Zoom Out, 200% = Zoom In)")
                 col_zoom1, col_zoom2, col_zoom3 = st.columns([2, 1, 1])
                 with col_zoom1:
                     zoom_level = st.slider(
                         "Zoom Level",
                         min_value=50, max_value=200, value=100, step=5,
-                        key="zoom_level",
+                        key="zoom_slider",
                         help="Zoom percentage: 50% = zoomed out, 200% = zoomed in"
                     )
                 with col_zoom2:
                     st.metric("Current Zoom", f"{zoom_level}%")
                 with col_zoom3:
-                    st.info(f"📏 Scale: {zoom_level/100:.1f}x")
+                    st.info(f"📏 {zoom_level/100:.1f}x")
                 
-                # Apply zoom to image
+                # Apply zoom to image - show preview of zoom
                 if zoom_level != 100:
                     zoom_h = int(h * zoom_level / 100)
                     zoom_w = int(w * zoom_level / 100)
-                    image_zoomed = cv2.resize(image_bgr, (zoom_w, zoom_h), interpolation=cv2.INTER_LINEAR)
+                    image_zoomed = cv2.resize(image_bgr, (zoom_w, zoom_h), interpolation=cv2.INTER_CUBIC)
+                    st.success(f"✅ Image zoomed to {zoom_level}% - Adjust crop sliders to fit the photo")
                 else:
                     image_zoomed = image_bgr.copy()
+                    st.info("📐 100% - Original size. Adjust crop sliders or use zoom to scale.")
                 
                 # Update dimensions after zoom
                 h_zoom, w_zoom = image_zoomed.shape[:2]
@@ -317,28 +319,28 @@ if uploaded_file:
                     crop_top_pct = st.slider(
                         "Top %",
                         0, 50, default_top, 1,
-                        key="crop_top",
+                        key="manual_crop_top",
                         help="% from top of image"
                     )
                 with col2:
                     crop_bottom_pct = st.slider(
                         "Bottom %",
                         crop_top_pct + 30, 100, default_bottom, 1,
-                        key="crop_bottom",
+                        key="manual_crop_bottom",
                         help="% from top of image"
                     )
                 with col3:
                     crop_left_pct = st.slider(
                         "Left %",
                         0, 40, default_left, 1,
-                        key="crop_left",
+                        key="manual_crop_left",
                         help="% from left of image"
                     )
                 with col4:
                     crop_right_pct = st.slider(
                         "Right %",
                         crop_left_pct + 40, 100, default_right, 1,
-                        key="crop_right",
+                        key="manual_crop_right",
                         help="% from left of image"
                     )
                 
