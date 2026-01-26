@@ -463,20 +463,15 @@ if uploaded_file:
                     cv2.line(img_display, (x1, y1), (x1 + corner_size, y1), (0, 200, 255), 3)
                     cv2.line(img_display, (x1, y1), (x1, y1 + corner_size), (0, 200, 255), 3)
                     
-                    # Add crop dimensions overlay on image
-                    crop_w = x2 - x1
-                    crop_h = y2 - y1
-                    dim_text = f"CROP: {crop_w}×{crop_h} px (Z:{zoom_level}%, S:{scale_factor:.0%}, Pos:{move_offset_x:+d}%,{move_offset_y:+d}%)"
-                    cv2.putText(img_display, dim_text, (x1 + 10, y1 - 10), 
-                               cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 1)
-                    
                     img_display_rgb = cv2.cvtColor(img_display, cv2.COLOR_BGR2RGB)
                     st.image(Image.fromarray(img_display_rgb), 
                             caption=f"Original Image - Crop Region Highlighted (Green Box)",
                             use_container_width=True)
                     
-                    # Show crop dimensions
-                    st.caption(f"📐 Crop region: {crop_w}×{crop_h} px | {crop_top_pct}-{crop_bottom_pct}% height, {crop_left_pct}-{crop_right_pct}% width")
+                    # Show crop dimensions below image
+                    crop_w = x2 - x1
+                    crop_h = y2 - y1
+                    st.caption(f"📐 Crop: {crop_w}×{crop_h} px | Zoom: {zoom_level}% | Scale: {scale_factor:.0%} | Pos: ({move_offset_x:+d}%, {move_offset_y:+d}%)")
                 
                 with col_preview2:
                     # Add dimensions overlay on final photo
