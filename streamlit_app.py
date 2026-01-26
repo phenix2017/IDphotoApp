@@ -482,21 +482,21 @@ if uploaded_file:
                     st.markdown("**Position**")
                     
                     # Up
-                    if st.button("⬆️", key="move_up", use_container_width=True, help="Move up 3%"):
-                        st.session_state.move_offset_y = getattr(st.session_state, 'move_offset_y', 0) - 3
+                    if st.button("⬆️", key="move_up", use_container_width=True, help="Move up 2%"):
+                        st.session_state.move_offset_y = getattr(st.session_state, 'move_offset_y', 0) - 2
                     
                     # Left/Right
                     dir_col1, dir_col2 = st.columns(2, gap="small")
                     with dir_col1:
-                        if st.button("⬅️", key="move_left", use_container_width=True, help="Move left 3%"):
-                            st.session_state.move_offset_x = getattr(st.session_state, 'move_offset_x', 0) - 3
+                        if st.button("⬅️", key="move_left", use_container_width=True, help="Move left 2%"):
+                            st.session_state.move_offset_x = getattr(st.session_state, 'move_offset_x', 0) - 2
                     with dir_col2:
-                        if st.button("➡️", key="move_right", use_container_width=True, help="Move right 3%"):
-                            st.session_state.move_offset_x = getattr(st.session_state, 'move_offset_x', 0) + 3
+                        if st.button("➡️", key="move_right", use_container_width=True, help="Move right 2%"):
+                            st.session_state.move_offset_x = getattr(st.session_state, 'move_offset_x', 0) + 2
                     
                     # Down
-                    if st.button("⬇️", key="move_down", use_container_width=True, help="Move down 3%"):
-                        st.session_state.move_offset_y = getattr(st.session_state, 'move_offset_y', 0) + 3
+                    if st.button("⬇️", key="move_down", use_container_width=True, help="Move down 2%"):
+                        st.session_state.move_offset_y = getattr(st.session_state, 'move_offset_y', 0) + 2
                     
                     move_x = getattr(st.session_state, 'move_offset_x', 0)
                     move_y = getattr(st.session_state, 'move_offset_y', 0)
