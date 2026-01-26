@@ -216,9 +216,26 @@ def build_print_sheet(
     available_width = sheet_w - 2 * margin
     available_height = sheet_h - 2 * margin
     
-    # Calculate maximum photos that can fit
-    max_cols = max(1, (available_width + spacing) // (photo_w + spacing))
-    max_rows = max(1, (available_height + spacing) // (photo_h + spacing))
+    # Calculate maximum photos that can fit with original orientation
+    max_cols_orig = max(1, (available_width + spacing) // (photo_w + spacing))
+    max_rows_orig = max(1, (available_height + spacing) // (photo_h + spacing))
+    total_photos_orig = max_cols_orig * max_rows_orig
+    
+    # Calculate maximum photos that can fit with 90-degree rotation
+    photo_w_rot, photo_h_rot = photo_h, photo_w  # Swap dimensions for rotation
+    max_cols_rot = max(1, (available_width + spacing) // (photo_w_rot + spacing))
+    max_rows_rot = max(1, (available_height + spacing) // (photo_h_rot + spacing))
+    total_photos_rot = max_cols_rot * max_rows_rot
+    
+    # Choose orientation that fits more photos
+    if total_photos_rot > total_photos_orig:
+        photo = photo.rotate(90, expand=True)
+        photo_w, photo_h = photo_w_rot, photo_h_rot
+        max_cols = max_cols_rot
+        max_rows = max_rows_rot
+    else:
+        max_cols = max_cols_orig
+        max_rows = max_rows_orig
     
     # Center the photos on the sheet for better appearance
     total_photos_width = max_cols * photo_w + (max_cols - 1) * spacing
