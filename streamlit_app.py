@@ -41,6 +41,37 @@ def _border_stats(image_bgr: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     std = np.std(border, axis=0)
     return mean, std
 
+
+def _max_copies_for_layout(
+    photo_w: int,
+    photo_h: int,
+    layout: LayoutSpec,
+    dpi: int,
+    margin_in: float,
+    spacing_in: float,
+) -> int:
+    sheet_w = int(round(layout.width_in * dpi))
+    sheet_h = int(round(layout.height_in * dpi))
+    margin = int(round(margin_in * dpi))
+    spacing = int(round(spacing_in * dpi))
+
+    available_width = sheet_w - 2 * margin
+    available_height = sheet_h - 2 * margin
+    if available_width <= 0 or available_height <= 0:
+        return 0
+
+    max_cols_orig = max(1, (available_width + spacing) // (photo_w + spacing))
+    max_rows_orig = max(1, (available_height + spacing) // (photo_h + spacing))
+    total_photos_orig = max_cols_orig * max_rows_orig
+
+    # rotated
+    photo_w_rot, photo_h_rot = photo_h, photo_w
+    max_cols_rot = max(1, (available_width + spacing) // (photo_w_rot + spacing))
+    max_rows_rot = max(1, (available_height + spacing) // (photo_h_rot + spacing))
+    total_photos_rot = max_cols_rot * max_rows_rot
+
+    return max(total_photos_orig, total_photos_rot)
+
 # Configure page
 st.set_page_config(
     page_title="ID Photo Processor",
@@ -309,22 +340,26 @@ with st.sidebar:
     else:
         layout = parse_layout(layout_preset)
     
-    copies = st.slider("📋 Number of Copies", min_value=1, max_value=20, value=6, help="How many photos per sheet")
+    copies = None  # auto-calculated based on layout, photo size, margin, spacing
     
     st.markdown("#### Fine Tuning")
     col_margin, col_spacing = st.columns(2)
     with col_margin:
         st.markdown("Margin (distance from edge)")
-        margin = st.number_input("Margin", value=0.5, min_value=0.0, step=0.05, label_visibility="collapsed", help="Distance from paper edges to photos: 0.25\" (minimal), 0.5\" (standard), 1.0\" (generous)")
+        margin = st.number_input("Margin", value=0.02, min_value=0.0, step=0.01, label_visibility="collapsed", help="Distance from paper edges to photos: 0.02\" (very tight), 0.25\" (minimal), 0.5\" (standard)")
     with col_spacing:
         st.markdown("Spacing (between photos)")
-        spacing = st.number_input("Spacing", value=0.1, min_value=0.0, step=0.05, label_visibility="collapsed", help="Gap between photos on the sheet")
+        spacing = st.number_input("Spacing", value=0.02, min_value=0.0, step=0.01, label_visibility="collapsed", help="Gap between photos on the sheet")
 
     st.divider()
     st.markdown("### 🖼️ Display")
     show_guides = st.checkbox("Show crop frames and guide lines", value=False, help="Toggle crop frames, tolerance zones, and guide lines on previews")
     show_sheet_guides = st.checkbox("Show print sheet cut lines", value=False, help="Toggle cut lines, outlines, and corner marks on the print sheet")
-    show_mask_debug = st.checkbox("Show background mask (debug)", value=False, help="Show the mask used for background removal")
+    show_mask_debug = st.checkbox(
+        "Show background mask preview",
+        value=False,
+        help="Preview the mask: white = kept (foreground), black = removed (background).",
+    )
     
     st.divider()
     st.markdown("""
@@ -422,7 +457,7 @@ if uploaded_file:
                 
                 # Optional debug mask preview
                 if replace_bg and show_mask_debug:
-                    with st.expander("Background Mask Debug", expanded=True):
+                    with st.expander("Background Mask Preview", expanded=True):
                         dbg_col1, dbg_col2 = st.columns(2)
                         with dbg_col1:
                             try:
@@ -436,7 +471,7 @@ if uploaded_file:
                                 )
                                 fg_ratio = float(np.mean(mask_orig > 0))
                                 mean, std = _border_stats(image_bgr)
-                                st.caption(f"Original mask fg: {fg_ratio:.2f} | border mean: {mean.astype(int)} | border std: {std.astype(int)}")
+                                st.caption(f"Original mask fg: {fg_ratio:.2f} | border mean: {mean.astype(int)} | border std: {std.astype(int)} | white=kept")
                                 st.image(Image.fromarray(mask_orig), caption="Original mask", use_container_width=True)
                             except Exception as exc:
                                 st.error(f"Mask debug failed (original): {exc}")
@@ -456,7 +491,7 @@ if uploaded_file:
                                 )
                                 fg_ratio = float(np.mean(mask_crop > 0))
                                 mean, std = _border_stats(cropped_bgr)
-                                st.caption(f"Cropped mask fg: {fg_ratio:.2f} | border mean: {mean.astype(int)} | border std: {std.astype(int)}")
+                                st.caption(f"Cropped mask fg: {fg_ratio:.2f} | border mean: {mean.astype(int)} | border std: {std.astype(int)} | white=kept")
                                 st.image(Image.fromarray(mask_crop), caption="Cropped mask", use_container_width=True)
                             except Exception as exc:
                                 st.error(f"Mask debug failed (cropped): {exc}")
@@ -668,19 +703,28 @@ if uploaded_file:
                 height_range = crop_bottom_pct - crop_top_pct
                 width_range = crop_right_pct - crop_left_pct
                 
-                # Apply scale factor
+                # Apply scale factor and lock to target aspect ratio
                 scaled_height = height_range * scale_factor
-                scaled_width = width_range * scale_factor
+                target_aspect = spec.width_in / spec.height_in
+                scaled_width = scaled_height * target_aspect * (h_zoom / w_zoom)
+                if scaled_width > 100:
+                    scaled_width = 100
+                    scaled_height = scaled_width / (target_aspect * (h_zoom / w_zoom))
+                if scaled_height > 100:
+                    scaled_height = 100
+                    scaled_width = scaled_height * target_aspect * (h_zoom / w_zoom)
                 
-                # Apply movement offset to center
-                center_y_moved = center_y + move_offset_y
-                center_x_moved = center_x + move_offset_x
+                # Apply movement offset to center (clamped to keep frame inside bounds)
+                half_h = scaled_height / 2
+                half_w = scaled_width / 2
+                center_y_moved = min(max(center_y + move_offset_y, half_h), 100 - half_h)
+                center_x_moved = min(max(center_x + move_offset_x, half_w), 100 - half_w)
                 
-                # Keep within bounds
-                crop_top_pct_scaled = max(0, min(50, center_y_moved - scaled_height / 2))
-                crop_bottom_pct_scaled = min(100, max(crop_top_pct_scaled + 30, center_y_moved + scaled_height / 2))
-                crop_left_pct_scaled = max(0, min(40, center_x_moved - scaled_width / 2))
-                crop_right_pct_scaled = min(100, max(crop_left_pct_scaled + 40, center_x_moved + scaled_width / 2))
+                # Keep within bounds with correct aspect ratio
+                crop_top_pct_scaled = center_y_moved - half_h
+                crop_bottom_pct_scaled = center_y_moved + half_h
+                crop_left_pct_scaled = center_x_moved - half_w
+                crop_right_pct_scaled = center_x_moved + half_w
                 
                 # Apply manual crop on zoomed image with scaled and moved boundaries
                 y1 = int(h_zoom * crop_top_pct_scaled / 100)
@@ -911,13 +955,23 @@ if uploaded_file:
             
             # Generate print sheet (for both automatic and manual modes)
             sheet_photo = cropped_pil.convert("RGB")
+            max_copies = _max_copies_for_layout(
+                photo_w=sheet_photo.size[0],
+                photo_h=sheet_photo.size[1],
+                layout=layout,
+                dpi=dpi,
+                margin_in=margin,
+                spacing_in=spacing,
+            )
+            effective_copies = max_copies
+            st.info(f"Copies per sheet (auto): {effective_copies}")
             sheet = build_print_sheet(
                 photo=sheet_photo,
                 layout=layout,
                 dpi=dpi,
                 margin_in=margin,
                 spacing_in=spacing,
-                copies=copies,
+                copies=effective_copies,
                 draw_guides=show_sheet_guides,
             )
             
@@ -1021,7 +1075,7 @@ if uploaded_file:
                 
                 # Sheet size info
                 sheet_w, sheet_h = sheet.size
-                st.caption(f"📐 Sheet: {sheet_w:,} × {sheet_h:,} px @ {dpi} DPI | {copies} copies")
+                st.caption(f"📐 Sheet: {sheet_w:,} × {sheet_h:,} px @ {dpi} DPI | {effective_copies} copies")
                 
                 # Download print sheet
                 sheet_buffer = io.BytesIO()
