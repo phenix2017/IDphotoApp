@@ -14,6 +14,7 @@ from process_photo import (
     detect_face,
     crop_to_spec,
     replace_background,
+    get_foreground_mask,
     build_print_sheet,
     LayoutSpec,
     parse_layout,
@@ -23,6 +24,22 @@ try:
     from streamlit_image_coordinates import streamlit_image_coordinates
 except ImportError:
     streamlit_image_coordinates = None
+
+
+def _border_stats(image_bgr: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    h, w = image_bgr.shape[:2]
+    border = np.concatenate(
+        [
+            image_bgr[0:5, :, :].reshape(-1, 3),
+            image_bgr[h - 5 : h, :, :].reshape(-1, 3),
+            image_bgr[:, 0:5, :].reshape(-1, 3),
+            image_bgr[:, w - 5 : w, :].reshape(-1, 3),
+        ],
+        axis=0,
+    )
+    mean = np.mean(border, axis=0)
+    std = np.std(border, axis=0)
+    return mean, std
 
 # Configure page
 st.set_page_config(
@@ -217,7 +234,63 @@ with st.sidebar:
     
     # Photo settings
     st.markdown("### 📷 Photo Settings")
-    replace_bg = st.checkbox("🎨 Replace Background", value=False, help="Automatically remove and replace the background")
+    replace_bg = st.checkbox("🧽 Remove/Replace Background", value=False, help="Remove the background and fill with a solid color")
+    background_color_options = {
+        "Use spec default": None,
+        "Transparent (PNG)": "transparent",
+        "White": (255, 255, 255),
+        "Off-white": (245, 245, 245),
+        "Light gray": (230, 230, 230),
+        "Blue": (0, 120, 255),
+        "Light blue": (200, 220, 255),
+    }
+    background_color_choice = st.selectbox(
+        "Background color",
+        options=list(background_color_options.keys()),
+        index=0,
+        help="Choose a common background color for the final photo",
+        disabled=not replace_bg,
+    )
+    st.markdown("Background tolerance range")
+    tol_col1, tol_col2 = st.columns(2)
+    with tol_col1:
+        tol_min = st.number_input(
+            "Min",
+            min_value=1,
+            max_value=100,
+            value=5,
+            step=1,
+            disabled=not replace_bg,
+        )
+    with tol_col2:
+        tol_max = st.number_input(
+            "Max",
+            min_value=1,
+            max_value=100,
+            value=60,
+            step=1,
+            disabled=not replace_bg,
+        )
+    if tol_max <= tol_min:
+        tol_max = tol_min + 1
+    bg_tolerance = st.slider(
+        "Background tolerance",
+        min_value=int(tol_min),
+        max_value=int(tol_max),
+        value=int(min(max(25, tol_min), tol_max)),
+        step=1,
+        help="Higher values remove more background (may eat into the subject).",
+        disabled=not replace_bg,
+    )
+    face_protect = st.slider(
+        "Face protection size",
+        min_value=0.25,
+        max_value=0.6,
+        value=0.4,
+        step=0.05,
+        help="Lower values preserve less area around the face.",
+        disabled=not replace_bg,
+    )
     dpi = st.slider("🎯 Quality (DPI)", min_value=100, max_value=600, value=300, step=50, help="Higher DPI = Better print quality")
     
     st.divider()
@@ -251,6 +324,7 @@ with st.sidebar:
     st.markdown("### 🖼️ Display")
     show_guides = st.checkbox("Show crop frames and guide lines", value=False, help="Toggle crop frames, tolerance zones, and guide lines on previews")
     show_sheet_guides = st.checkbox("Show print sheet cut lines", value=False, help="Toggle cut lines, outlines, and corner marks on the print sheet")
+    show_mask_debug = st.checkbox("Show background mask (debug)", value=False, help="Show the mask used for background removal")
     
     st.divider()
     st.markdown("""
@@ -306,15 +380,86 @@ if uploaded_file:
             processing_mode = st.session_state.get("processing_mode", "Automatic")
             
             with st.spinner("Processing..."):
-                # Replace background if selected
-                if replace_bg:
-                    image_bgr = replace_background(image_bgr, specs[country].background_rgb)
+                transparent_bg = replace_bg and (background_color_choice == "Transparent (PNG)")
+                background_rgb = background_color_options.get(background_color_choice)
+                if background_rgb in (None, "transparent"):
+                    background_rgb = specs[country].background_rgb
+                pad_rgb = background_rgb if replace_bg else specs[country].background_rgb
                 
                 # Detect face
                 bbox, eye_point = detect_face(image_bgr)
+
+                # Replace background if selected
+                if replace_bg and not transparent_bg:
+                    image_bgr = replace_background(
+                        image_bgr,
+                        background_rgb,
+                        face_bbox=bbox,
+                        bbox_expand_x=0.4,
+                        bbox_expand_y=0.6,
+                        bg_tolerance=float(bg_tolerance),
+                        face_protect=float(face_protect),
+                    )
                 
                 # Crop to spec
-                cropped_bgr = crop_to_spec(image_bgr, bbox, eye_point, specs[country], dpi)
+                cropped_bgr = crop_to_spec(image_bgr, bbox, eye_point, specs[country], dpi, background_rgb=pad_rgb)
+
+                # If background replacement is enabled, re-apply on the cropped image so the result is visible
+                if replace_bg and not transparent_bg:
+                    try:
+                        bbox_cropped, _ = detect_face(cropped_bgr)
+                    except Exception:
+                        bbox_cropped = None
+                    cropped_bgr = replace_background(
+                        cropped_bgr,
+                        background_rgb,
+                        face_bbox=bbox_cropped,
+                        bbox_expand_x=0.2,
+                        bbox_expand_y=0.3,
+                        bg_tolerance=float(bg_tolerance),
+                        face_protect=float(face_protect),
+                    )
+                
+                # Optional debug mask preview
+                if replace_bg and show_mask_debug:
+                    with st.expander("Background Mask Debug", expanded=True):
+                        dbg_col1, dbg_col2 = st.columns(2)
+                        with dbg_col1:
+                            try:
+                                mask_orig = get_foreground_mask(
+                                    image_bgr,
+                                    face_bbox=bbox,
+                                    bbox_expand_x=0.4,
+                                    bbox_expand_y=0.6,
+                                    bg_tolerance=float(bg_tolerance),
+                                    face_protect=float(face_protect),
+                                )
+                                fg_ratio = float(np.mean(mask_orig > 0))
+                                mean, std = _border_stats(image_bgr)
+                                st.caption(f"Original mask fg: {fg_ratio:.2f} | border mean: {mean.astype(int)} | border std: {std.astype(int)}")
+                                st.image(Image.fromarray(mask_orig), caption="Original mask", use_container_width=True)
+                            except Exception as exc:
+                                st.error(f"Mask debug failed (original): {exc}")
+                        with dbg_col2:
+                            try:
+                                bbox_dbg, _ = detect_face(cropped_bgr)
+                            except Exception:
+                                bbox_dbg = None
+                            try:
+                                mask_crop = get_foreground_mask(
+                                    cropped_bgr,
+                                    face_bbox=bbox_dbg,
+                                    bbox_expand_x=0.2,
+                                    bbox_expand_y=0.3,
+                                    bg_tolerance=float(bg_tolerance),
+                                    face_protect=float(face_protect),
+                                )
+                                fg_ratio = float(np.mean(mask_crop > 0))
+                                mean, std = _border_stats(cropped_bgr)
+                                st.caption(f"Cropped mask fg: {fg_ratio:.2f} | border mean: {mean.astype(int)} | border std: {std.astype(int)}")
+                                st.image(Image.fromarray(mask_crop), caption="Cropped mask", use_container_width=True)
+                            except Exception as exc:
+                                st.error(f"Mask debug failed (cropped): {exc}")
                 
                 # Convert to RGB for display
                 cropped_rgb = cv2.cvtColor(cropped_bgr, cv2.COLOR_BGR2RGB)
@@ -573,7 +718,7 @@ if uploaded_file:
                     manual_cropped_bgr = cv2.resize(manual_cropped_bgr, (new_w, new_h), interpolation=interpolation)
                     
                     # Center in the target dimensions with background padding
-                    result = np.full((h_px, w_px, 3), spec.background_rgb[::-1], dtype=np.uint8)
+                    result = np.full((h_px, w_px, 3), pad_rgb[::-1], dtype=np.uint8)
                     y_offset = (h_px - new_h) // 2
                     x_offset = (w_px - new_w) // 2
                     result[y_offset:y_offset+new_h, x_offset:x_offset+new_w] = manual_cropped_bgr
@@ -765,8 +910,9 @@ if uploaded_file:
                 st.caption(f"✓ {w_px:,} × {h_px:,} px | {specs[country].width_in}\" × {specs[country].height_in}\" @ {dpi} DPI")
             
             # Generate print sheet (for both automatic and manual modes)
+            sheet_photo = cropped_pil.convert("RGB")
             sheet = build_print_sheet(
-                photo=cropped_pil,
+                photo=sheet_photo,
                 layout=layout,
                 dpi=dpi,
                 margin_in=margin,
@@ -785,9 +931,66 @@ if uploaded_file:
                 spec = specs[country]
                 w_in, h_in = spec.width_in, spec.height_in
                 
+                # If transparent background requested, build RGBA output for display/download
+                if transparent_bg:
+                    try:
+                        bbox_cropped, _ = detect_face(cropped_bgr)
+                    except Exception:
+                        bbox_cropped = None
+                    fg_mask = get_foreground_mask(
+                        cropped_bgr,
+                        face_bbox=bbox_cropped,
+                        bbox_expand_x=0.2,
+                        bbox_expand_y=0.3,
+                        prefer_white_key=False,
+                        bg_tolerance=float(bg_tolerance),
+                    )
+                    # Be conservative for transparency: grow the foreground a bit and soften edges.
+                    fg_mask = cv2.dilate(
+                        fg_mask,
+                        cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7)),
+                        iterations=2,
+                    )
+                    fg_mask = cv2.morphologyEx(
+                        fg_mask,
+                        cv2.MORPH_CLOSE,
+                        cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (9, 9)),
+                        iterations=2,
+                    )
+                    # Fill small holes inside the foreground mask.
+                    inv = cv2.bitwise_not(fg_mask)
+                    h_m, w_m = inv.shape[:2]
+                    flood = inv.copy()
+                    mask = np.zeros((h_m + 2, w_m + 2), np.uint8)
+                    cv2.floodFill(flood, mask, (0, 0), 255)
+                    holes = cv2.bitwise_not(flood)
+                    fg_mask = cv2.bitwise_or(fg_mask, holes)
+                    fg_mask = cv2.GaussianBlur(fg_mask, (5, 5), 0)
+
+                    # Final hard-protect: keep only the core face ellipse to prevent erosion.
+                    if bbox_cropped is not None:
+                        x, y, w, h = bbox_cropped
+                        # Also force an ellipse over the core face area.
+                        cx = x + w // 2
+                        cy = y + h // 2
+                        axes = (int(w * face_protect), int(h * (face_protect + 0.15)))
+                        face_core = np.zeros_like(fg_mask)
+                        cv2.ellipse(face_core, (cx, cy), axes, 0, 0, 360, 255, -1)
+                        fg_mask = cv2.bitwise_or(fg_mask, face_core)
+                    if float(np.mean(fg_mask > 0)) > 0.98:
+                        b, g, r = cv2.split(cropped_bgr)
+                        white_mask = (b > 235) & (g > 235) & (r > 235)
+                        fg_mask = (~white_mask).astype(np.uint8) * 255
+                    rgba = cv2.cvtColor(cropped_bgr, cv2.COLOR_BGR2RGBA)
+                    rgba[:, :, 3] = fg_mask
+                    cropped_pil = Image.fromarray(rgba)
+                
                 # Display cropped photo without text overlay
-                cropped_display = cv2.cvtColor(cropped_bgr, cv2.COLOR_BGR2RGB)
-                st.image(Image.fromarray(cropped_display), caption=f"{w_in}\" × {h_in}\"", use_container_width=True)
+                if transparent_bg:
+                    st.image(cropped_pil, caption=f"{w_in}\" × {h_in}\" (transparent)", use_container_width=True)
+                else:
+                    cropped_display = cv2.cvtColor(cropped_bgr, cv2.COLOR_BGR2RGB)
+                    st.image(Image.fromarray(cropped_display), caption=f"{w_in}\" × {h_in}\"", use_container_width=True)
                 
                 # Photo size info
                 w_px, h_px = cropped_pil.size
@@ -795,14 +998,16 @@ if uploaded_file:
                 
                 # Download cropped photo
                 img_buffer = io.BytesIO()
-                cropped_pil.save(img_buffer, format="JPEG", quality=95)
+                cropped_pil.save(img_buffer, format="PNG")
+                download_name = f"{country.lower()}_photo.png"
+                download_mime = "image/png"
                 img_buffer.seek(0)
                 
                 st.download_button(
                     label="📥 Download Photo",
                     data=img_buffer,
-                    file_name=f"{country.lower()}_photo.jpg",
-                    mime="image/jpeg",
+                    file_name=download_name,
+                    mime=download_mime,
                     use_container_width=True
                 )
             

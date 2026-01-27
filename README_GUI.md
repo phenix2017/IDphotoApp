@@ -349,7 +349,7 @@ You now have a **fully functional GUI** for IDphotoApp!
 ✅ Upload photos with drag & drop  
 ✅ Automatically detect and crop faces  
 ✅ Choose from 3 country specifications  
-✅ Replace background with white  
+✅ Replace background with white  5
 ✅ Generate multi-copy print sheets  
 ✅ Download ready-to-print JPEGs  
 ✅ All in a clean web interface  

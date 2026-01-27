@@ -9,7 +9,7 @@ import math
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Tuple
+from typing import Dict, Optional, Tuple
 
 import numpy as np
 from PIL import Image
@@ -23,6 +23,8 @@ try:
     import mediapipe as mp
 except ImportError:  # pragma: no cover - optional
     mp = None
+
+_selfie_segmenter = None
 
 
 @dataclass
@@ -90,12 +92,8 @@ def detect_face(image_bgr: np.ndarray) -> Tuple[Tuple[int, int, int, int], Tuple
     return (x, y, w, h), (eye_x, eye_y)
 
 
-def replace_background(image_bgr: np.ndarray, background_rgb: Tuple[int, int, int]) -> np.ndarray:
-    """Replace background using simple color-based segmentation (no MediaPipe dependency).
-    
-    For better results, consider implementing MediaPipe or DeepLab integration.
-    This basic version uses edge detection and color clustering.
-    """
+def _foreground_mask_hsv(image_bgr: np.ndarray) -> np.ndarray:
+    """Fallback foreground mask using simple color-based segmentation."""
     # Convert to HSV for better skin detection
     hsv = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2HSV)
     
@@ -109,11 +107,224 @@ def replace_background(image_bgr: np.ndarray, background_rgb: Tuple[int, int, in
     mask = cv2.dilate(mask, kernel, iterations=2)
     mask = cv2.erode(mask, kernel, iterations=1)
     
-    # Create composite
-    background = np.full_like(image_bgr, background_rgb[::-1])  # Convert RGB to BGR
-    condition = mask[:, :, None] > 128
-    composite = np.where(condition, image_bgr, background)
-    return composite
+    return (mask > 128).astype(np.uint8) * 255
+
+
+def _border_stats(image_bgr: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    h, w = image_bgr.shape[:2]
+    border = np.concatenate(
+        [
+            image_bgr[0:5, :, :].reshape(-1, 3),
+            image_bgr[h - 5 : h, :, :].reshape(-1, 3),
+            image_bgr[:, 0:5, :].reshape(-1, 3),
+            image_bgr[:, w - 5 : w, :].reshape(-1, 3),
+        ],
+        axis=0,
+    )
+    mean = np.mean(border, axis=0)
+    std = np.std(border, axis=0)
+    return mean, std
+
+
+def _white_key_mask(image_bgr: np.ndarray, bg_tolerance: float) -> Optional[np.ndarray]:
+    mean, std = _border_stats(image_bgr)
+    if float(np.mean(mean)) < (180 - max(0.0, bg_tolerance - 25.0)) or float(np.mean(std)) > 40:
+        return None
+    diff = np.linalg.norm(image_bgr.astype(np.float32) - mean.astype(np.float32), axis=2)
+    bg = diff < max(10.0, bg_tolerance)
+    fg_mask = (~bg).astype(np.uint8) * 255
+    fg_mask = cv2.medianBlur(fg_mask, 5)
+    return fg_mask
+
+
+def _white_bg_heuristic(image_bgr: np.ndarray, bg_tolerance: float) -> np.ndarray:
+    """Aggressive white-background keying using HSV thresholds."""
+    hsv = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2HSV)
+    h, s, v = cv2.split(hsv)
+    # Background if bright and low saturation
+    v_thresh = int(max(180, 255 - bg_tolerance * 1.5))
+    s_thresh = int(min(60, max(20, bg_tolerance)))
+    bg = (v > v_thresh) & (s < s_thresh)
+    fg_mask = (~bg).astype(np.uint8) * 255
+    fg_mask = cv2.medianBlur(fg_mask, 5)
+    return fg_mask
+
+
+def _border_color_key_mask(image_bgr: np.ndarray, bg_tolerance: float) -> Optional[np.ndarray]:
+    """Key out a uniform background color by keeping only border-connected regions."""
+    mean, std = _border_stats(image_bgr)
+    mean_std = float(np.mean(std))
+    # Only use when the border looks reasonably uniform.
+    if mean_std > 45:
+        return None
+
+    diff = np.linalg.norm(image_bgr.astype(np.float32) - mean.astype(np.float32), axis=2)
+    thresh = max(10.0, bg_tolerance) + 1.5 * mean_std
+    bg_candidate = (diff < thresh).astype(np.uint8) * 255
+
+    # Keep only background regions connected to the border.
+    num_labels, labels = cv2.connectedComponents(bg_candidate)
+    if num_labels <= 1:
+        return None
+
+    border_labels = set()
+    h, w = labels.shape
+    border_labels.update(np.unique(labels[0, :]).tolist())
+    border_labels.update(np.unique(labels[h - 1, :]).tolist())
+    border_labels.update(np.unique(labels[:, 0]).tolist())
+    border_labels.update(np.unique(labels[:, w - 1]).tolist())
+    border_labels.discard(0)
+
+    if not border_labels:
+        return None
+
+    bg_mask = np.isin(labels, list(border_labels))
+    fg_mask = (~bg_mask).astype(np.uint8) * 255
+    fg_mask = cv2.medianBlur(fg_mask, 5)
+    return fg_mask
+
+
+def _get_selfie_segmenter():
+    global _selfie_segmenter
+    if _selfie_segmenter is None and mp is not None:
+        if not hasattr(mp, "solutions"):
+            return None
+        _selfie_segmenter = mp.solutions.selfie_segmentation.SelfieSegmentation(model_selection=1)
+    return _selfie_segmenter
+
+
+def get_foreground_mask(
+    image_bgr: np.ndarray,
+    threshold: float = 0.5,
+    face_bbox: Optional[Tuple[int, int, int, int]] = None,
+    bbox_expand_x: float = 0.4,
+    bbox_expand_y: float = 0.6,
+    prefer_white_key: bool = False,
+    bg_tolerance: float = 25.0,
+    face_protect: float = 0.4,
+) -> np.ndarray:
+    """Return a foreground mask (uint8 0/255) using the most reliable method available."""
+    border_key = _border_color_key_mask(image_bgr, bg_tolerance=bg_tolerance)
+    if border_key is not None:
+        return border_key
+
+    white_key = _white_key_mask(image_bgr, bg_tolerance=bg_tolerance)
+    if white_key is not None:
+        return white_key
+    if prefer_white_key:
+        return _white_bg_heuristic(image_bgr, bg_tolerance=bg_tolerance)
+
+    segmenter = _get_selfie_segmenter()
+    if segmenter is not None:
+        image_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
+        result = segmenter.process(image_rgb)
+        if result.segmentation_mask is not None:
+            mask = result.segmentation_mask
+            # Smooth edges for cleaner composites
+            mask = cv2.GaussianBlur(mask, (7, 7), 0)
+            mask = (mask > threshold).astype(np.uint8) * 255
+            mask = cv2.medianBlur(mask, 5)
+
+            # If mask is almost all foreground or background, treat as failure.
+            fg_ratio = float(np.mean(mask > 0))
+            if 0.02 < fg_ratio < 0.98:
+                return mask
+
+    if face_bbox is not None:
+        try:
+            x, y, w, h = face_bbox
+            h_img, w_img = image_bgr.shape[:2]
+            # Expand bbox to include hair/shoulders
+            pad_x = int(w * bbox_expand_x)
+            pad_y = int(h * bbox_expand_y)
+            x0 = max(0, x - pad_x)
+            y0 = max(0, y - pad_y)
+            x1 = min(w_img - 1, x + w + pad_x)
+            y1 = min(h_img - 1, y + h + pad_y)
+
+            mask = np.full(image_bgr.shape[:2], cv2.GC_BGD, dtype=np.uint8)
+            mask[y0:y1, x0:x1] = cv2.GC_PR_FGD
+            # Mark central face as sure foreground
+            cx0 = max(0, x + int(w * 0.2))
+            cy0 = max(0, y + int(h * 0.2))
+            cx1 = min(w_img - 1, x + int(w * 0.8))
+            cy1 = min(h_img - 1, y + int(h * 0.8))
+            mask[cy0:cy1, cx0:cx1] = cv2.GC_FGD
+
+            bgd_model = np.zeros((1, 65), np.float64)
+            fgd_model = np.zeros((1, 65), np.float64)
+            cv2.grabCut(image_bgr, mask, None, bgd_model, fgd_model, 5, cv2.GC_INIT_WITH_MASK)
+
+            fg_mask = np.where((mask == cv2.GC_FGD) | (mask == cv2.GC_PR_FGD), 255, 0).astype(np.uint8)
+            fg_mask = cv2.medianBlur(fg_mask, 5)
+
+            # If the face region isn't mostly foreground, the mask likely inverted.
+            face_region = fg_mask[cy0:cy1, cx0:cx1]
+            if face_region.size > 0 and (np.mean(face_region) < 128):
+                fg_mask = cv2.bitwise_not(fg_mask)
+
+            # Force face + nearby area to foreground to avoid "cutting into" subject.
+            fg_mask[y0:y1, x0:x1] = 255
+            fg_mask = cv2.dilate(fg_mask, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7)), iterations=1)
+            return fg_mask
+        except Exception:
+            pass
+
+    if face_bbox is not None:
+        x, y, w, h = face_bbox
+        h_img, w_img = image_bgr.shape[:2]
+        pad_x = int(w * max(0.1, bbox_expand_x))
+        pad_y = int(h * max(0.2, bbox_expand_y))
+        x0 = max(0, x - pad_x)
+        y0 = max(0, y - pad_y)
+        x1 = min(w_img - 1, x + w + pad_x)
+        y1 = min(h_img - 1, y + h + pad_y)
+        fg_mask = np.zeros((h_img, w_img), dtype=np.uint8)
+        fg_mask[y0:y1, x0:x1] = 255
+        return fg_mask
+
+    return _foreground_mask_hsv(image_bgr)
+
+
+def replace_background(
+    image_bgr: np.ndarray,
+    background_rgb: Tuple[int, int, int],
+    threshold: float = 0.5,
+    face_bbox: Optional[Tuple[int, int, int, int]] = None,
+    bbox_expand_x: float = 0.4,
+    bbox_expand_y: float = 0.6,
+    bg_tolerance: float = 25.0,
+    face_protect: float = 0.4,
+) -> np.ndarray:
+    """Replace background using the best available foreground mask."""
+    fg_mask = get_foreground_mask(
+        image_bgr,
+        threshold=threshold,
+        face_bbox=face_bbox,
+        bbox_expand_x=bbox_expand_x,
+        bbox_expand_y=bbox_expand_y,
+        prefer_white_key=True,
+        bg_tolerance=bg_tolerance,
+        face_protect=face_protect,
+    )
+    # If the mask is almost all-foreground, fall back to white-key.
+    if float(np.mean(fg_mask > 0)) > 0.98:
+        white_key = _white_key_mask(image_bgr, bg_tolerance=bg_tolerance)
+        if white_key is not None:
+            fg_mask = white_key
+
+    # Hard-protect only the core face ellipse to avoid erosion without swallowing background.
+    if face_bbox is not None:
+        x, y, w, h = face_bbox
+        cx = x + w // 2
+        cy = y + h // 2
+        axes = (int(w * face_protect), int(h * (face_protect + 0.15)))
+        face_core = np.zeros_like(fg_mask)
+        cv2.ellipse(face_core, (cx, cy), axes, 0, 0, 360, 255, -1)
+        fg_mask = cv2.bitwise_or(fg_mask, face_core)
+    background = np.full_like(image_bgr, background_rgb[::-1])  # RGB to BGR
+    condition = fg_mask[:, :, None] > 0
+    return np.where(condition, image_bgr, background)
 
 
 def compute_output_size_px(spec: PhotoSpec, dpi: int) -> Tuple[int, int]:
@@ -126,6 +337,7 @@ def crop_to_spec(
     eye_point: Tuple[int, int],
     spec: PhotoSpec,
     dpi: int,
+    background_rgb: Optional[Tuple[int, int, int]] = None,
 ) -> np.ndarray:
     """Crop and resize to spec while maintaining aspect ratio (no face distortion)."""
     out_w, out_h = compute_output_size_px(spec, dpi)
@@ -147,7 +359,8 @@ def crop_to_spec(
     top = int(round(eye_y - target_eye_y))
 
     # Crop with padding - maintains aspect ratio
-    cropped = crop_with_padding(resized, left, top, out_w, out_h, spec.background_rgb)
+    pad_rgb = background_rgb if background_rgb is not None else spec.background_rgb
+    cropped = crop_with_padding(resized, left, top, out_w, out_h, pad_rgb)
     
     # Final resize to exact dimensions if needed (minimal distortion since we've already positioned correctly)
     # Only resize if aspect ratio is significantly different
@@ -364,11 +577,18 @@ def main() -> None:
     if image_bgr is None:
         raise SystemExit("Could not read input image.")
 
-    if args.replace_bg:
-        image_bgr = replace_background(image_bgr, spec.background_rgb)
-
     bbox, eye_point = detect_face(image_bgr)
-    cropped_bgr = crop_to_spec(image_bgr, bbox, eye_point, spec, args.dpi)
+
+    if args.replace_bg:
+        image_bgr = replace_background(image_bgr, spec.background_rgb, face_bbox=bbox)
+    cropped_bgr = crop_to_spec(
+        image_bgr,
+        bbox,
+        eye_point,
+        spec,
+        args.dpi,
+        background_rgb=spec.background_rgb,
+    )
 
     output_dir = args.output_dir
     output_dir.mkdir(parents=True, exist_ok=True)
