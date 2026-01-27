@@ -103,7 +103,8 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Load specs early
-specs = load_specs(Path("specs.json"))
+specs_path = Path(__file__).resolve().parent / "specs.json"
+specs = load_specs(specs_path)
 
 # Show profile requirements
 with st.expander("📐 Profile Requirements & Visual Guide", expanded=False):
@@ -126,12 +127,31 @@ with st.expander("📐 Profile Requirements & Visual Guide", expanded=False):
         """)
     
     with col_req2:
-        st.markdown("### 📋 Standards by Country")
-        for code, spec in specs.items():
-            st.write(f"**{code}** - {spec.name}")
-            st.write(f"  Size: {spec.width_in}\" × {spec.height_in}\"")
-            st.write(f"  Head: {spec.head_height_ratio:.0%} of height")
-            st.write(f"  Eyes: {spec.eye_line_from_bottom_ratio:.0%} from bottom")
+        st.markdown("### 📋 Standards by Country (50+ Countries)")
+        
+        # Create tabs for better organization
+        tab_major, tab_all = st.tabs(["Major Countries", "All Countries"])
+        
+        with tab_major:
+            st.markdown("**Popular immigration destinations:**")
+            major_codes = ["US_PASSPORT", "US_VISA", "CA_PASSPORT", "CA_VISA", "UK_PASSPORT", "UK_VISA", 
+                          "AU_PASSPORT", "AU_VISA", "JP_PASSPORT", "JP_VISA", "SG_PASSPORT", "SG_VISA"]
+            for code in major_codes:
+                if code in specs:
+                    spec = specs[code]
+                    w_in = spec.width_in if hasattr(spec, 'width_in') else spec.width_in
+                    h_in = spec.height_in if hasattr(spec, 'height_in') else spec.height_in
+                    st.write(f"**{spec.name}** • {w_in}\" × {h_in}\" | Head: {spec.head_height_ratio:.0%}")
+        
+        with tab_all:
+            st.markdown(f"**All {len(specs)} specifications:**")
+            cols_display = st.columns(2)
+            for idx, (code, spec) in enumerate(specs.items()):
+                col = cols_display[idx % 2]
+                with col:
+                    w_in = spec.width_in if hasattr(spec, 'width_in') else spec.width_in
+                    h_in = spec.height_in if hasattr(spec, 'height_in') else spec.height_in
+                    st.caption(f"{spec.name} • {w_in}\" × {h_in}\"")
     
     with col_req3:
         st.markdown("### 🎯 Best Practices")
@@ -188,10 +208,10 @@ with st.sidebar:
     # Country selection
     st.markdown("### 🌍 Country Selection")
     country = st.selectbox(
-        "Select your country",
+        "Select your country/purpose",
         options=list(specs.keys()),
-        format_func=lambda x: f"🇺🇸 {x} - {specs[x].name}" if x == "US" else f"🇨🇦 {x} - {specs[x].name}" if x == "CA" else f"🇬🇧 {x} - {specs[x].name}",
-        help="Choose the country specification for your ID photo",
+        format_func=lambda x: specs[x].name,
+        help="Choose the country specification and document type for your ID photo",
         label_visibility="collapsed"
     )
     
@@ -221,11 +241,16 @@ with st.sidebar:
     st.markdown("#### Fine Tuning")
     col_margin, col_spacing = st.columns(2)
     with col_margin:
-        st.markdown("Margin (standard: 0.25\")")
-        margin = st.number_input("Margin", value=0.25, min_value=0.0, step=0.05, label_visibility="collapsed", help="Standard print margin: 0.25\" (professional), 0.5\" (safer)")
+        st.markdown("Margin (distance from edge)")
+        margin = st.number_input("Margin", value=0.5, min_value=0.0, step=0.05, label_visibility="collapsed", help="Distance from paper edges to photos: 0.25\" (minimal), 0.5\" (standard), 1.0\" (generous)")
     with col_spacing:
-        st.markdown("Spacing")
-        spacing = st.number_input("Spacing", value=0.05, min_value=0.0, step=0.05, label_visibility="collapsed", help="Gap between photos")
+        st.markdown("Spacing (between photos)")
+        spacing = st.number_input("Spacing", value=0.1, min_value=0.0, step=0.05, label_visibility="collapsed", help="Gap between photos on the sheet")
+
+    st.divider()
+    st.markdown("### 🖼️ Display")
+    show_guides = st.checkbox("Show crop frames and guide lines", value=False, help="Toggle crop frames, tolerance zones, and guide lines on previews")
+    show_sheet_guides = st.checkbox("Show print sheet cut lines", value=False, help="Toggle cut lines, outlines, and corner marks on the print sheet")
     
     st.divider()
     st.markdown("""
@@ -377,21 +402,43 @@ if uploaded_file:
                 st.markdown("### 🎯 Adjust Crop Boundaries")
                 st.markdown("*Drag sliders to position the crop frame around the head and shoulders*")
                 
-                # Create sliders with default values
+                # Create sliders with default values optimized for target photo format
                 h, w = image_bgr.shape[:2]
+                image_aspect_ratio = w / h
                 
-                # Get automatic crop as reference
+                # Get target photo specifications
+                spec = specs[country]
+                target_aspect_ratio = spec.width_in / spec.height_in
+                target_eye_pos = spec.eye_line_from_bottom_ratio
+                target_head_fill = spec.head_height_ratio
+                
+                # Calculate default crop frame optimized for the target format
                 try:
-                    auto_h_ratio = specs[country].head_height_ratio
-                    auto_eye_pos = specs[country].eye_line_from_bottom_ratio
-                    # Estimate crop based on face size (auto crop will be ~50-70% of image)
-                    default_top = max(5, int((1 - auto_eye_pos - auto_h_ratio/2) * 100))
-                    default_bottom = min(95, int((1 - auto_eye_pos + auto_h_ratio/2) * 100))
-                    default_left = 15
-                    default_right = 85
+                    # Center the crop frame in the image
+                    center_y_pct = 50
+                    center_x_pct = 50
+                    
+                    # Calculate frame height based on target head fill ratio
+                    # Frame should accommodate head at the specified position
+                    frame_height_pct = target_head_fill * 100 / 0.7  # Add padding above/below head
+                    frame_height_pct = min(80, frame_height_pct)  # Cap at 80% of image
+                    
+                    # Calculate frame width to match target aspect ratio
+                    frame_width_pct = frame_height_pct * target_aspect_ratio
+                    frame_width_pct = min(80, frame_width_pct)  # Cap at 80% of image
+                    
+                    # Position vertically so eyes are at the target position
+                    default_top = max(5, int(center_y_pct - frame_height_pct * (1 - target_eye_pos)))
+                    default_bottom = min(95, int(center_y_pct + frame_height_pct * target_eye_pos))
+                    
+                    # Position horizontally centered
+                    default_left = max(10, int(center_x_pct - frame_width_pct / 2))
+                    default_right = min(90, int(center_x_pct + frame_width_pct / 2))
+                    
                 except:
-                    default_top, default_bottom = 20, 85
-                    default_left, default_right = 15, 85
+                    # Fallback defaults
+                    default_top, default_bottom = 20, 80
+                    default_left, default_right = 20, 80
                 
                 # Use original image without zoom
                 image_zoomed = image_bgr.copy()
@@ -402,6 +449,9 @@ if uploaded_file:
                 
                 # Main layout: key parameters only
                 st.markdown("*Use these controls to position your photo within the tolerance zones (colored bands)*")
+                
+                # Tolerance for guide/validation bands (±15% of crop height)
+                tolerance = 0.15
                 
                 # Size and Position controls
                 size_pos_col1, size_pos_col2 = st.columns(2, gap="medium")
@@ -495,9 +545,39 @@ if uploaded_file:
                 
                 manual_cropped_bgr = image_zoomed[y1:y2, x1:x2]
                 
-                # Resize to spec dimensions
+                # Resize to spec dimensions while minimizing aspect ratio distortion
                 w_px, h_px = int(round(spec.width_in * dpi)), int(round(spec.height_in * dpi))
-                manual_cropped_bgr = cv2.resize(manual_cropped_bgr, (w_px, h_px), interpolation=cv2.INTER_CUBIC)
+                target_aspect = w_px / h_px
+                
+                # Get the aspect ratio of the manual crop
+                crop_h = y2 - y1
+                crop_w = x2 - x1
+                current_aspect = crop_w / crop_h
+                
+                # Only resize if aspect ratio differs significantly (avoid unnecessary distortion)
+                if abs(current_aspect - target_aspect) < 0.1:
+                    # Aspect ratios are similar - safe to resize
+                    interpolation = cv2.INTER_AREA if (crop_w * crop_h > w_px * h_px) else cv2.INTER_CUBIC
+                    manual_cropped_bgr = cv2.resize(manual_cropped_bgr, (w_px, h_px), interpolation=interpolation)
+                else:
+                    # Aspect ratios differ - fit into target with padding to avoid face distortion
+                    # Calculate how much space is available
+                    scale_w = w_px / crop_w
+                    scale_h = h_px / crop_h
+                    scale = min(scale_w, scale_h)  # Use smaller scale to fit without distortion
+                    
+                    # Resize maintaining aspect ratio
+                    new_w = int(round(crop_w * scale))
+                    new_h = int(round(crop_h * scale))
+                    interpolation = cv2.INTER_AREA if (crop_w * crop_h > new_w * new_h) else cv2.INTER_CUBIC
+                    manual_cropped_bgr = cv2.resize(manual_cropped_bgr, (new_w, new_h), interpolation=interpolation)
+                    
+                    # Center in the target dimensions with background padding
+                    result = np.full((h_px, w_px, 3), spec.background_rgb[::-1], dtype=np.uint8)
+                    y_offset = (h_px - new_h) // 2
+                    x_offset = (w_px - new_w) // 2
+                    result[y_offset:y_offset+new_h, x_offset:x_offset+new_w] = manual_cropped_bgr
+                    manual_cropped_bgr = result
                 
                 manual_cropped_rgb = cv2.cvtColor(manual_cropped_bgr, cv2.COLOR_BGR2RGB)
                 cropped_pil = Image.fromarray(manual_cropped_rgb)
@@ -507,8 +587,6 @@ if uploaded_file:
                 
                 # Validate feature positioning with tolerance
                 crop_h = y2 - y1
-                crop_w = x2 - x1
-                tolerance = 0.15  # 15% tolerance for feature positioning
                 
                 # Check if key features are within acceptable bounds
                 eye_line_y = y1 + int(crop_h * (1 - spec.eye_line_from_bottom_ratio))
@@ -526,73 +604,80 @@ if uploaded_file:
                 # Overall validation
                 features_valid = all([eye_in_frame, forehead_in_frame, shoulders_in_frame, head_top_in_frame, center_aligned])
                 
-                # Show live preview with crop box overlay
+                # Show live preview (optional overlay)
                 st.markdown("### 📸 Live Preview")
-                st.markdown("*Green box shows the area that will be cropped. Guide lines help position key features correctly.*")
+                if show_guides:
+                    st.markdown("*Green box shows the area that will be cropped. Guide lines help position key features correctly.*")
                 
                 col_preview1, col_preview2 = st.columns(2)
                 with col_preview1:
-                    # Draw rectangle showing crop area on zoomed image
-                    img_display = image_zoomed.copy()
-                    
-                    # Draw outer rectangle with thick green border
-                    cv2.rectangle(img_display, (x1, y1), (x2, y2), (0, 255, 0), 4)
-                    
-                    # Add guide lines for correct positioning
-                    crop_h = y2 - y1
-                    crop_w = x2 - x1
-                    tolerance_px = int(crop_h * tolerance)
-                    
-                    # Forehead tolerance zone (top area)
-                    forehead_y = y1 + int(crop_h * 0.1)
-                    forehead_top = max(y1, forehead_y - tolerance_px)
-                    forehead_bottom = forehead_y + tolerance_px
-                    cv2.line(img_display, (x1, forehead_top), (x2, forehead_top), (100, 255, 255), 1)  # Top boundary
-                    cv2.line(img_display, (x1, forehead_y), (x2, forehead_y), (0, 200, 255), 1)  # Center line
-                    cv2.line(img_display, (x1, forehead_bottom), (x2, forehead_bottom), (100, 255, 255), 1)  # Bottom boundary
-                    cv2.putText(img_display, "Forehead", (x1 + 5, forehead_y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 200, 255), 1)
-                    
-                    # Eye line tolerance zone
-                    eye_line_y = y1 + int(crop_h * (1 - specs[country].eye_line_from_bottom_ratio))
-                    eye_top = eye_line_y - tolerance_px
-                    eye_bottom = eye_line_y + tolerance_px
-                    cv2.line(img_display, (x1, eye_top), (x2, eye_top), (255, 100, 255), 1)  # Top boundary
-                    cv2.line(img_display, (x1, eye_line_y), (x2, eye_line_y), (255, 0, 255), 1)  # Center line
-                    cv2.line(img_display, (x1, eye_bottom), (x2, eye_bottom), (255, 100, 255), 1)  # Bottom boundary
-                    cv2.putText(img_display, "Eyes", (x1 + 5, eye_line_y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 0, 255), 1)
-                    
-                    # Shoulders/chest tolerance zone (bottom area)
-                    shoulders_y = y2 - int(crop_h * 0.15)
-                    shoulders_top = shoulders_y - tolerance_px
-                    shoulders_bottom = min(y2, shoulders_y + tolerance_px)
-                    cv2.line(img_display, (x1, shoulders_top), (x2, shoulders_top), (100, 200, 100), 1)  # Top boundary
-                    cv2.line(img_display, (x1, shoulders_y), (x2, shoulders_y), (0, 200, 0), 1)  # Center line
-                    cv2.line(img_display, (x1, shoulders_bottom), (x2, shoulders_bottom), (100, 200, 100), 1)  # Bottom boundary
-                    cv2.putText(img_display, "Shoulders", (x1 + 5, shoulders_y + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 200, 0), 1)
-                    
-                    # Head top tolerance zone
-                    head_top_y = y1 + int(crop_h * 0.05)
-                    head_top_zone_top = max(y1, head_top_y - tolerance_px)
-                    head_top_zone_bottom = head_top_y + tolerance_px
-                    cv2.line(img_display, (x1, head_top_zone_top), (x2, head_top_zone_top), (200, 150, 100), 1)  # Top boundary
-                    cv2.line(img_display, (x1, head_top_y), (x2, head_top_y), (0, 165, 255), 1)  # Center line
-                    cv2.line(img_display, (x1, head_top_zone_bottom), (x2, head_top_zone_bottom), (200, 150, 100), 1)  # Bottom boundary
-                    cv2.putText(img_display, "Head Top", (x1 + 5, head_top_y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 165, 255), 1)
-                    
-                    # Add center vertical line
-                    center_x_line = (x1 + x2) // 2
-                    cv2.line(img_display, (center_x_line, y1), (center_x_line, y2), (200, 200, 0), 1)  # Yellow
-                    cv2.putText(img_display, "Center", (center_x_line + 5, y1 + 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 0), 1)
-                    
-                    # Add corner markers
-                    corner_size = 20
-                    cv2.line(img_display, (x1, y1), (x1 + corner_size, y1), (0, 200, 255), 3)
-                    cv2.line(img_display, (x1, y1), (x1, y1 + corner_size), (0, 200, 255), 3)
-                    
-                    img_display_rgb = cv2.cvtColor(img_display, cv2.COLOR_BGR2RGB)
-                    st.image(Image.fromarray(img_display_rgb), 
-                            caption=f"Original Image - Crop with Position Guides",
-                            use_container_width=True)
+                    if show_guides:
+                        # Draw rectangle showing crop area on zoomed image
+                        img_display = image_zoomed.copy()
+                        
+                        # Draw outer rectangle with thick green border
+                        cv2.rectangle(img_display, (x1, y1), (x2, y2), (0, 255, 0), 4)
+                        
+                        # Add guide lines for correct positioning
+                        crop_h = y2 - y1
+                        crop_w = x2 - x1
+                        tolerance_px = int(crop_h * tolerance)
+                        
+                        # Forehead tolerance zone (top area)
+                        forehead_y = y1 + int(crop_h * 0.1)
+                        forehead_top = max(y1, forehead_y - tolerance_px)
+                        forehead_bottom = forehead_y + tolerance_px
+                        cv2.line(img_display, (x1, forehead_top), (x2, forehead_top), (100, 255, 255), 1)  # Top boundary
+                        cv2.line(img_display, (x1, forehead_y), (x2, forehead_y), (0, 200, 255), 1)  # Center line
+                        cv2.line(img_display, (x1, forehead_bottom), (x2, forehead_bottom), (100, 255, 255), 1)  # Bottom boundary
+                        cv2.putText(img_display, "Forehead", (x1 + 5, forehead_y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 200, 255), 1)
+                        
+                        # Eye line tolerance zone
+                        eye_line_y = y1 + int(crop_h * (1 - specs[country].eye_line_from_bottom_ratio))
+                        eye_top = eye_line_y - tolerance_px
+                        eye_bottom = eye_line_y + tolerance_px
+                        cv2.line(img_display, (x1, eye_top), (x2, eye_top), (255, 100, 255), 1)  # Top boundary
+                        cv2.line(img_display, (x1, eye_line_y), (x2, eye_line_y), (255, 0, 255), 1)  # Center line
+                        cv2.line(img_display, (x1, eye_bottom), (x2, eye_bottom), (255, 100, 255), 1)  # Bottom boundary
+                        cv2.putText(img_display, "Eyes", (x1 + 5, eye_line_y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 0, 255), 1)
+                        
+                        # Shoulders/chest tolerance zone (bottom area)
+                        shoulders_y = y2 - int(crop_h * 0.15)
+                        shoulders_top = shoulders_y - tolerance_px
+                        shoulders_bottom = min(y2, shoulders_y + tolerance_px)
+                        cv2.line(img_display, (x1, shoulders_top), (x2, shoulders_top), (100, 200, 100), 1)  # Top boundary
+                        cv2.line(img_display, (x1, shoulders_y), (x2, shoulders_y), (0, 200, 0), 1)  # Center line
+                        cv2.line(img_display, (x1, shoulders_bottom), (x2, shoulders_bottom), (100, 200, 100), 1)  # Bottom boundary
+                        cv2.putText(img_display, "Shoulders", (x1 + 5, shoulders_y + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 200, 0), 1)
+                        
+                        # Head top tolerance zone
+                        head_top_y = y1 + int(crop_h * 0.05)
+                        head_top_zone_top = max(y1, head_top_y - tolerance_px)
+                        head_top_zone_bottom = head_top_y + tolerance_px
+                        cv2.line(img_display, (x1, head_top_zone_top), (x2, head_top_zone_top), (200, 150, 100), 1)  # Top boundary
+                        cv2.line(img_display, (x1, head_top_y), (x2, head_top_y), (0, 165, 255), 1)  # Center line
+                        cv2.line(img_display, (x1, head_top_zone_bottom), (x2, head_top_zone_bottom), (200, 150, 100), 1)  # Bottom boundary
+                        cv2.putText(img_display, "Head Top", (x1 + 5, head_top_y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 165, 255), 1)
+                        
+                        # Add center vertical line
+                        center_x_line = (x1 + x2) // 2
+                        cv2.line(img_display, (center_x_line, y1), (center_x_line, y2), (200, 200, 0), 1)  # Yellow
+                        cv2.putText(img_display, "Center", (center_x_line + 5, y1 + 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 0), 1)
+                        
+                        # Add corner markers
+                        corner_size = 20
+                        cv2.line(img_display, (x1, y1), (x1 + corner_size, y1), (0, 200, 255), 3)
+                        cv2.line(img_display, (x1, y1), (x1, y1 + corner_size), (0, 200, 255), 3)
+                        
+                        img_display_rgb = cv2.cvtColor(img_display, cv2.COLOR_BGR2RGB)
+                        st.image(Image.fromarray(img_display_rgb), 
+                                caption=f"Original Image - Crop with Position Guides",
+                                use_container_width=True)
+                    else:
+                        img_display_rgb = cv2.cvtColor(image_zoomed, cv2.COLOR_BGR2RGB)
+                        st.image(Image.fromarray(img_display_rgb), 
+                                caption="Original Image",
+                                use_container_width=True)
                     
                     # Show crop dimensions below image
                     st.caption(f"📐 Crop: {crop_w}×{crop_h} px | Scale: {scale_factor:.0%} | Pos: ({move_offset_x:+d}%, {move_offset_y:+d}%)")
@@ -635,55 +720,60 @@ if uploaded_file:
                         st.info("📍 Adjust the crop frame to position all features correctly", icon="ℹ️")
                 
                 with col_preview2:
-                    # Display final photo with feature guides
+                    # Display final photo (optional guide overlay)
                     final_photo_display = cv2.cvtColor(cropped_bgr, cv2.COLOR_BGR2RGB)
-                    
-                    # Add guide lines to final photo as well
-                    final_display = final_photo_display.copy()
-                    final_h, final_w = final_display.shape[:2]
-                    tolerance_px_final = int(final_h * tolerance)
-                    
-                    # Forehead tolerance zone
-                    forehead_final = int(final_h * 0.1)
-                    forehead_top_final = max(0, forehead_final - tolerance_px_final)
-                    forehead_bottom_final = forehead_final + tolerance_px_final
-                    cv2.line(final_display, (0, forehead_top_final), (final_w, forehead_top_final), (100, 255, 255), 1)
-                    cv2.line(final_display, (0, forehead_final), (final_w, forehead_final), (0, 200, 255), 1)
-                    cv2.line(final_display, (0, forehead_bottom_final), (final_w, forehead_bottom_final), (100, 255, 255), 1)
-                    cv2.putText(final_display, "Forehead", (5, forehead_final - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 200, 255), 1)
-                    
-                    # Eye line tolerance zone
-                    eye_line_final = int(final_h * (1 - specs[country].eye_line_from_bottom_ratio))
-                    eye_top_final = eye_line_final - tolerance_px_final
-                    eye_bottom_final = eye_line_final + tolerance_px_final
-                    cv2.line(final_display, (0, eye_top_final), (final_w, eye_top_final), (255, 100, 255), 1)
-                    cv2.line(final_display, (0, eye_line_final), (final_w, eye_line_final), (255, 0, 255), 1)
-                    cv2.line(final_display, (0, eye_bottom_final), (final_w, eye_bottom_final), (255, 100, 255), 1)
-                    cv2.putText(final_display, "Eyes", (5, eye_line_final - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 0, 255), 1)
-                    
-                    # Shoulders tolerance zone
-                    shoulders_final = int(final_h * 0.8)
-                    shoulders_top_final = shoulders_final - tolerance_px_final
-                    shoulders_bottom_final = min(final_h, shoulders_final + tolerance_px_final)
-                    cv2.line(final_display, (0, shoulders_top_final), (final_w, shoulders_top_final), (100, 200, 100), 1)
-                    cv2.line(final_display, (0, shoulders_final), (final_w, shoulders_final), (0, 200, 0), 1)
-                    cv2.line(final_display, (0, shoulders_bottom_final), (final_w, shoulders_bottom_final), (100, 200, 100), 1)
-                    cv2.putText(final_display, "Mid-Chest", (5, shoulders_final + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 200, 0), 1)
-                    
-                    st.image(Image.fromarray(final_display), 
-                            caption=f"Final ID Photo with Tolerance Zones",
-                            use_container_width=True)
-                    st.caption(f"✓ {w_px}×{h_px} px | {specs[country].width_in}\" × {specs[country].height_in}\" @ {dpi} DPI")
-                
-                # Generate print sheet
-                sheet = build_print_sheet(
-                    photo=cropped_pil,
-                    layout=layout,
-                    dpi=dpi,
-                    margin_in=margin,
-                    spacing_in=spacing,
-                    copies=copies,
-                )
+                    if show_guides:
+                        # Add guide lines to final photo as well
+                        final_display = final_photo_display.copy()
+                        final_h, final_w = final_display.shape[:2]
+                        tolerance_px_final = int(final_h * tolerance)
+                        
+                        # Forehead tolerance zone
+                        forehead_final = int(final_h * 0.1)
+                        forehead_top_final = max(0, forehead_final - tolerance_px_final)
+                        forehead_bottom_final = forehead_final + tolerance_px_final
+                        cv2.line(final_display, (0, forehead_top_final), (final_w, forehead_top_final), (100, 255, 255), 1)
+                        cv2.line(final_display, (0, forehead_final), (final_w, forehead_final), (0, 200, 255), 1)
+                        cv2.line(final_display, (0, forehead_bottom_final), (final_w, forehead_bottom_final), (100, 255, 255), 1)
+                        cv2.putText(final_display, "Forehead", (5, forehead_final - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 200, 255), 1)
+                        
+                        # Eye line tolerance zone
+                        eye_line_final = int(final_h * (1 - specs[country].eye_line_from_bottom_ratio))
+                        eye_top_final = eye_line_final - tolerance_px_final
+                        eye_bottom_final = eye_line_final + tolerance_px_final
+                        cv2.line(final_display, (0, eye_top_final), (final_w, eye_top_final), (255, 100, 255), 1)
+                        cv2.line(final_display, (0, eye_line_final), (final_w, eye_line_final), (255, 0, 255), 1)
+                        cv2.line(final_display, (0, eye_bottom_final), (final_w, eye_bottom_final), (255, 100, 255), 1)
+                        cv2.putText(final_display, "Eyes", (5, eye_line_final - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 0, 255), 1)
+                        
+                        # Shoulders tolerance zone
+                        shoulders_final = int(final_h * 0.8)
+                        shoulders_top_final = shoulders_final - tolerance_px_final
+                        shoulders_bottom_final = min(final_h, shoulders_final + tolerance_px_final)
+                        cv2.line(final_display, (0, shoulders_top_final), (final_w, shoulders_top_final), (100, 200, 100), 1)
+                        cv2.line(final_display, (0, shoulders_final), (final_w, shoulders_final), (0, 200, 0), 1)
+                        cv2.line(final_display, (0, shoulders_bottom_final), (final_w, shoulders_bottom_final), (100, 200, 100), 1)
+                        cv2.putText(final_display, "Mid-Chest", (5, shoulders_final + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 200, 0), 1)
+                        
+                        st.image(Image.fromarray(final_display), 
+                                caption="Final ID Photo with Tolerance Zones",
+                                use_container_width=True)
+                    else:
+                        st.image(Image.fromarray(final_photo_display), 
+                                caption="Final ID Photo",
+                                use_container_width=True)
+                st.caption(f"✓ {w_px:,} × {h_px:,} px | {specs[country].width_in}\" × {specs[country].height_in}\" @ {dpi} DPI")
+            
+            # Generate print sheet (for both automatic and manual modes)
+            sheet = build_print_sheet(
+                photo=cropped_pil,
+                layout=layout,
+                dpi=dpi,
+                margin_in=margin,
+                spacing_in=spacing,
+                copies=copies,
+                draw_guides=show_sheet_guides,
+            )
             
             # Display results
             st.success("✅ Photo processed successfully!")
@@ -701,7 +791,7 @@ if uploaded_file:
                 
                 # Photo size info
                 w_px, h_px = cropped_pil.size
-                st.caption(f"📐 Size: {w_px} × {h_px} pixels @ {dpi} DPI | {country} Standard")
+                st.caption(f"📐 Size: {w_px:,} × {h_px:,} px @ {dpi} DPI | {country} Standard")
                 
                 # Download cropped photo
                 img_buffer = io.BytesIO()
@@ -726,7 +816,7 @@ if uploaded_file:
                 
                 # Sheet size info
                 sheet_w, sheet_h = sheet.size
-                st.caption(f"📐 Sheet: {sheet_w} × {sheet_h} pixels @ {dpi} DPI | {copies} copies")
+                st.caption(f"📐 Sheet: {sheet_w:,} × {sheet_h:,} px @ {dpi} DPI | {copies} copies")
                 
                 # Download print sheet
                 sheet_buffer = io.BytesIO()
@@ -752,7 +842,7 @@ if uploaded_file:
                 st.metric("Photo Size", f"{specs[country].width_in}\" × {specs[country].height_in}\"")
             
             with col_specs3:
-                st.metric("Head Height Ratio", f"{specs[country].head_height_ratio:.0%}")
+                st.metric("Head Frame Coverage", f"{specs[country].head_height_ratio:.0%}")
     
     except RuntimeError as e:
         st.error(f"❌ Error: {str(e)}")

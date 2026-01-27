@@ -1,6 +1,6 @@
 {
   "US_PASSPORT": {
-    "name": "USA - Passport",
+    "name": "🇺🇸 US Passport",
     "photo_width_in": 2.0,
     "photo_height_in": 2.0,
     "head_height_ratio": 0.6,
@@ -8,7 +8,7 @@
     "background_rgb": [255, 255, 255]
   },
   "US_VISA": {
-    "name": "USA - Visa / Immigration",
+    "name": "🇺🇸 US Visa / Immigration",
     "photo_width_in": 2.0,
     "photo_height_in": 2.0,
     "head_height_ratio": 0.6,
@@ -16,7 +16,7 @@
     "background_rgb": [255, 255, 255]
   },
   "CA_PASSPORT": {
-    "name": "Canada - Passport",
+    "name": "🇨🇦 Canada Passport",
     "photo_width_mm": 50,
     "photo_height_mm": 70,
     "head_height_ratio": 0.52,
@@ -24,7 +24,7 @@
     "background_rgb": [255, 255, 255]
   },
   "CA_VISA": {
-    "name": "Canada - Visa / Immigration",
+    "name": "🇨🇦 Canada Visa / Immigration",
     "photo_width_mm": 50,
     "photo_height_mm": 70,
     "head_height_ratio": 0.52,
@@ -32,7 +32,7 @@
     "background_rgb": [255, 255, 255]
   },
   "UK_PASSPORT": {
-    "name": "UK - Passport",
+    "name": "🇬🇧 UK Passport",
     "photo_width_mm": 35,
     "photo_height_mm": 45,
     "head_height_ratio": 0.62,
@@ -40,7 +40,7 @@
     "background_rgb": [255, 255, 255]
   },
   "UK_VISA": {
-    "name": "UK - Visa / Immigration",
+    "name": "🇬🇧 UK Visa / Immigration",
     "photo_width_mm": 35,
     "photo_height_mm": 45,
     "head_height_ratio": 0.62,
@@ -48,7 +48,7 @@
     "background_rgb": [255, 255, 255]
   },
   "AU_PASSPORT": {
-    "name": "Australia - Passport",
+    "name": "🇦🇺 Australia Passport",
     "photo_width_mm": 35,
     "photo_height_mm": 45,
     "head_height_ratio": 0.6,
@@ -56,7 +56,7 @@
     "background_rgb": [255, 255, 255]
   },
   "AU_VISA": {
-    "name": "Australia - Visa / Immigration",
+    "name": "🇦🇺 Australia Visa / Immigration",
     "photo_width_mm": 40,
     "photo_height_mm": 50,
     "head_height_ratio": 0.6,
@@ -64,7 +64,7 @@
     "background_rgb": [255, 255, 255]
   },
   "DE_PASSPORT": {
-    "name": "Germany - Passport",
+    "name": "🇩🇪 Germany Passport",
     "photo_width_mm": 35,
     "photo_height_mm": 45,
     "head_height_ratio": 0.6,
@@ -72,7 +72,7 @@
     "background_rgb": [255, 255, 255]
   },
   "FR_PASSPORT": {
-    "name": "France - Passport",
+    "name": "🇫🇷 France Passport",
     "photo_width_mm": 35,
     "photo_height_mm": 45,
     "head_height_ratio": 0.6,
@@ -80,7 +80,7 @@
     "background_rgb": [255, 255, 255]
   },
   "IT_PASSPORT": {
-    "name": "Italy - Passport",
+    "name": "🇮🇹 Italy Passport",
     "photo_width_mm": 35,
     "photo_height_mm": 45,
     "head_height_ratio": 0.6,
@@ -88,7 +88,7 @@
     "background_rgb": [255, 255, 255]
   },
   "ES_PASSPORT": {
-    "name": "Spain - Passport",
+    "name": "🇪🇸 Spain Passport",
     "photo_width_mm": 32,
     "photo_height_mm": 40,
     "head_height_ratio": 0.62,
@@ -96,7 +96,7 @@
     "background_rgb": [255, 255, 255]
   },
   "NL_PASSPORT": {
-    "name": "Netherlands - Passport",
+    "name": "🇳🇱 Netherlands Passport",
     "photo_width_mm": 35,
     "photo_height_mm": 45,
     "head_height_ratio": 0.6,
@@ -104,7 +104,7 @@
     "background_rgb": [255, 255, 255]
   },
   "SE_PASSPORT": {
-    "name": "Sweden - Passport",
+    "name": "🇸🇪 Sweden Passport",
     "photo_width_mm": 35,
     "photo_height_mm": 45,
     "head_height_ratio": 0.6,
@@ -112,7 +112,7 @@
     "background_rgb": [255, 255, 255]
   },
   "CH_PASSPORT": {
-    "name": "Switzerland - Passport",
+    "name": "🇨🇭 Switzerland Passport",
     "photo_width_mm": 35,
     "photo_height_mm": 45,
     "head_height_ratio": 0.6,
@@ -120,7 +120,7 @@
     "background_rgb": [255, 255, 255]
   },
   "JP_PASSPORT": {
-    "name": "Japan - Passport",
+    "name": "🇯🇵 Japan Passport",
     "photo_width_mm": 45,
     "photo_height_mm": 45,
     "head_height_ratio": 0.65,
@@ -128,7 +128,7 @@
     "background_rgb": [255, 255, 255]
   },
   "JP_VISA": {
-    "name": "Japan - Visa / Immigration",
+    "name": "🇯🇵 Japan Visa / Immigration",
     "photo_width_mm": 45,
     "photo_height_mm": 45,
     "head_height_ratio": 0.65,
@@ -136,7 +136,7 @@
     "background_rgb": [255, 255, 255]
   },
   "SG_PASSPORT": {
-    "name": "Singapore - Passport",
+    "name": "🇸🇬 Singapore Passport",
     "photo_width_mm": 35,
     "photo_height_mm": 45,
     "head_height_ratio": 0.6,
@@ -144,7 +144,7 @@
     "background_rgb": [255, 255, 255]
   },
   "SG_VISA": {
-    "name": "Singapore - Visa / Immigration",
+    "name": "🇸🇬 Singapore Visa / Immigration",
     "photo_width_mm": 35,
     "photo_height_mm": 45,
     "head_height_ratio": 0.6,
@@ -152,7 +152,7 @@
     "background_rgb": [255, 255, 255]
   },
   "KR_PASSPORT": {
-    "name": "South Korea - Passport",
+    "name": "🇰🇷 South Korea Passport",
     "photo_width_mm": 35,
     "photo_height_mm": 45,
     "head_height_ratio": 0.6,
@@ -160,7 +160,7 @@
     "background_rgb": [255, 255, 255]
   },
   "KR_VISA": {
-    "name": "South Korea - Visa / Immigration",
+    "name": "🇰🇷 South Korea Visa / Immigration",
     "photo_width_mm": 35,
     "photo_height_mm": 45,
     "head_height_ratio": 0.6,
@@ -168,7 +168,7 @@
     "background_rgb": [255, 255, 255]
   },
   "CN_PASSPORT": {
-    "name": "China - Passport",
+    "name": "🇨🇳 China Passport",
     "photo_width_mm": 33,
     "photo_height_mm": 48,
     "head_height_ratio": 0.58,
@@ -176,7 +176,7 @@
     "background_rgb": [255, 255, 255]
   },
   "CN_VISA": {
-    "name": "China - Visa / Immigration",
+    "name": "🇨🇳 China Visa / Immigration",
     "photo_width_mm": 33,
     "photo_height_mm": 48,
     "head_height_ratio": 0.58,
@@ -184,7 +184,7 @@
     "background_rgb": [255, 255, 255]
   },
   "IN_PASSPORT": {
-    "name": "India - Passport",
+    "name": "🇮🇳 India Passport",
     "photo_width_mm": 35,
     "photo_height_mm": 45,
     "head_height_ratio": 0.58,
@@ -192,7 +192,7 @@
     "background_rgb": [255, 255, 255]
   },
   "IN_VISA": {
-    "name": "India - Visa / Immigration",
+    "name": "🇮🇳 India Visa / Immigration",
     "photo_width_mm": 35,
     "photo_height_mm": 45,
     "head_height_ratio": 0.58,
@@ -200,7 +200,7 @@
     "background_rgb": [255, 255, 255]
   },
   "NZ_PASSPORT": {
-    "name": "New Zealand - Passport",
+    "name": "🇳🇿 New Zealand Passport",
     "photo_width_mm": 35,
     "photo_height_mm": 45,
     "head_height_ratio": 0.6,
@@ -208,7 +208,7 @@
     "background_rgb": [255, 255, 255]
   },
   "NZ_VISA": {
-    "name": "New Zealand - Visa / Immigration",
+    "name": "🇳🇿 New Zealand Visa / Immigration",
     "photo_width_mm": 35,
     "photo_height_mm": 45,
     "head_height_ratio": 0.6,
@@ -216,7 +216,7 @@
     "background_rgb": [255, 255, 255]
   },
   "BR_PASSPORT": {
-    "name": "Brazil - Passport",
+    "name": "🇧🇷 Brazil Passport",
     "photo_width_mm": 31.5,
     "photo_height_mm": 43,
     "head_height_ratio": 0.62,
@@ -224,7 +224,7 @@
     "background_rgb": [255, 255, 255]
   },
   "MX_PASSPORT": {
-    "name": "Mexico - Passport",
+    "name": "🇲🇽 Mexico Passport",
     "photo_width_mm": 32,
     "photo_height_mm": 40,
     "head_height_ratio": 0.62,
@@ -232,7 +232,7 @@
     "background_rgb": [255, 255, 255]
   },
   "ZA_PASSPORT": {
-    "name": "South Africa - Passport",
+    "name": "🇿🇦 South Africa Passport",
     "photo_width_mm": 35,
     "photo_height_mm": 45,
     "head_height_ratio": 0.6,
@@ -240,7 +240,7 @@
     "background_rgb": [255, 255, 255]
   },
   "AE_PASSPORT": {
-    "name": "UAE - Passport",
+    "name": "🇦🇪 UAE Passport",
     "photo_width_mm": 40,
     "photo_height_mm": 50,
     "head_height_ratio": 0.6,
@@ -248,7 +248,7 @@
     "background_rgb": [255, 255, 255]
   },
   "AE_VISA": {
-    "name": "UAE - Visa / Immigration",
+    "name": "🇦🇪 UAE Visa / Immigration",
     "photo_width_mm": 40,
     "photo_height_mm": 50,
     "head_height_ratio": 0.6,
@@ -256,7 +256,7 @@
     "background_rgb": [255, 255, 255]
   },
   "TH_PASSPORT": {
-    "name": "Thailand - Passport",
+    "name": "🇹🇭 Thailand Passport",
     "photo_width_mm": 40,
     "photo_height_mm": 50,
     "head_height_ratio": 0.6,
@@ -264,7 +264,7 @@
     "background_rgb": [255, 255, 255]
   },
   "TH_VISA": {
-    "name": "Thailand - Visa / Immigration",
+    "name": "🇹🇭 Thailand Visa / Immigration",
     "photo_width_mm": 40,
     "photo_height_mm": 50,
     "head_height_ratio": 0.6,
@@ -272,7 +272,7 @@
     "background_rgb": [255, 255, 255]
   },
   "MY_PASSPORT": {
-    "name": "Malaysia - Passport",
+    "name": "🇲🇾 Malaysia Passport",
     "photo_width_mm": 35,
     "photo_height_mm": 50,
     "head_height_ratio": 0.55,
@@ -280,7 +280,7 @@
     "background_rgb": [255, 255, 255]
   },
   "ID_PASSPORT": {
-    "name": "Indonesia - Passport",
+    "name": "🇮🇩 Indonesia Passport",
     "photo_width_mm": 30,
     "photo_height_mm": 40,
     "head_height_ratio": 0.6,
@@ -288,7 +288,7 @@
     "background_rgb": [255, 255, 255]
   },
   "PH_PASSPORT": {
-    "name": "Philippines - Passport",
+    "name": "🇵🇭 Philippines Passport",
     "photo_width_mm": 35,
     "photo_height_mm": 45,
     "head_height_ratio": 0.6,
@@ -296,7 +296,7 @@
     "background_rgb": [255, 255, 255]
   },
   "VN_PASSPORT": {
-    "name": "Vietnam - Passport",
+    "name": "🇻🇳 Vietnam Passport",
     "photo_width_mm": 35,
     "photo_height_mm": 45,
     "head_height_ratio": 0.6,
@@ -304,7 +304,7 @@
     "background_rgb": [255, 255, 255]
   },
   "TR_PASSPORT": {
-    "name": "Turkey - Passport",
+    "name": "🇹🇷 Turkey Passport",
     "photo_width_mm": 35,
     "photo_height_mm": 45,
     "head_height_ratio": 0.6,
@@ -312,7 +312,7 @@
     "background_rgb": [255, 255, 255]
   },
   "PK_PASSPORT": {
-    "name": "Pakistan - Passport",
+    "name": "🇵🇰 Pakistan Passport",
     "photo_width_mm": 35,
     "photo_height_mm": 45,
     "head_height_ratio": 0.58,
@@ -320,7 +320,7 @@
     "background_rgb": [255, 255, 255]
   },
   "BD_PASSPORT": {
-    "name": "Bangladesh - Passport",
+    "name": "🇧🇩 Bangladesh Passport",
     "photo_width_mm": 35,
     "photo_height_mm": 45,
     "head_height_ratio": 0.58,
@@ -328,7 +328,7 @@
     "background_rgb": [255, 255, 255]
   },
   "GR_PASSPORT": {
-    "name": "Greece - Passport",
+    "name": "🇬🇷 Greece Passport",
     "photo_width_mm": 35,
     "photo_height_mm": 45,
     "head_height_ratio": 0.6,
@@ -336,7 +336,7 @@
     "background_rgb": [255, 255, 255]
   },
   "PT_PASSPORT": {
-    "name": "Portugal - Passport",
+    "name": "🇵🇹 Portugal Passport",
     "photo_width_mm": 35,
     "photo_height_mm": 45,
     "head_height_ratio": 0.6,
@@ -344,7 +344,7 @@
     "background_rgb": [255, 255, 255]
   },
   "PL_PASSPORT": {
-    "name": "Poland - Passport",
+    "name": "🇵🇱 Poland Passport",
     "photo_width_mm": 35,
     "photo_height_mm": 45,
     "head_height_ratio": 0.6,
@@ -352,7 +352,7 @@
     "background_rgb": [255, 255, 255]
   },
   "CZ_PASSPORT": {
-    "name": "Czech Republic - Passport",
+    "name": "🇨🇿 Czech Republic Passport",
     "photo_width_mm": 35,
     "photo_height_mm": 45,
     "head_height_ratio": 0.6,
@@ -360,7 +360,7 @@
     "background_rgb": [255, 255, 255]
   },
   "IE_PASSPORT": {
-    "name": "Ireland - Passport",
+    "name": "🇮🇪 Ireland Passport",
     "photo_width_mm": 35,
     "photo_height_mm": 45,
     "head_height_ratio": 0.62,
@@ -368,7 +368,7 @@
     "background_rgb": [255, 255, 255]
   },
   "HK_PASSPORT": {
-    "name": "Hong Kong - Passport",
+    "name": "🇭🇰 Hong Kong Passport",
     "photo_width_mm": 35,
     "photo_height_mm": 45,
     "head_height_ratio": 0.6,
@@ -376,7 +376,7 @@
     "background_rgb": [255, 255, 255]
   },
   "TW_PASSPORT": {
-    "name": "Taiwan - Passport",
+    "name": "🇹🇼 Taiwan Passport",
     "photo_width_mm": 35,
     "photo_height_mm": 45,
     "head_height_ratio": 0.6,
@@ -384,7 +384,7 @@
     "background_rgb": [255, 255, 255]
   },
   "SCHENGEN": {
-    "name": "Schengen Visa - EU",
+    "name": "🇪🇺 Schengen Visa (EU)",
     "photo_width_mm": 35,
     "photo_height_mm": 45,
     "head_height_ratio": 0.6,
@@ -392,7 +392,7 @@
     "background_rgb": [255, 255, 255]
   },
   "NO_PASSPORT": {
-    "name": "Norway - Passport",
+    "name": "🇳🇴 Norway Passport",
     "photo_width_mm": 35,
     "photo_height_mm": 45,
     "head_height_ratio": 0.6,
@@ -400,7 +400,7 @@
     "background_rgb": [255, 255, 255]
   },
   "DK_PASSPORT": {
-    "name": "Denmark - Passport",
+    "name": "🇩🇰 Denmark Passport",
     "photo_width_mm": 35,
     "photo_height_mm": 45,
     "head_height_ratio": 0.6,
@@ -408,7 +408,7 @@
     "background_rgb": [255, 255, 255]
   },
   "FI_PASSPORT": {
-    "name": "Finland - Passport",
+    "name": "🇫🇮 Finland Passport",
     "photo_width_mm": 35,
     "photo_height_mm": 45,
     "head_height_ratio": 0.6,
@@ -416,7 +416,7 @@
     "background_rgb": [255, 255, 255]
   },
   "BE_PASSPORT": {
-    "name": "Belgium - Passport",
+    "name": "🇧🇪 Belgium Passport",
     "photo_width_mm": 35,
     "photo_height_mm": 45,
     "head_height_ratio": 0.6,
@@ -424,7 +424,7 @@
     "background_rgb": [255, 255, 255]
   },
   "AT_PASSPORT": {
-    "name": "Austria - Passport",
+    "name": "🇦🇹 Austria Passport",
     "photo_width_mm": 35,
     "photo_height_mm": 45,
     "head_height_ratio": 0.6,
@@ -432,7 +432,7 @@
     "background_rgb": [255, 255, 255]
   },
   "US": {
-    "name": "USA - Passport (Legacy)",
+    "name": "🇺🇸 US Passport (Legacy)",
     "photo_width_in": 2.0,
     "photo_height_in": 2.0,
     "head_height_ratio": 0.6,
@@ -440,7 +440,7 @@
     "background_rgb": [255, 255, 255]
   },
   "CA": {
-    "name": "Canada - Passport (Legacy)",
+    "name": "🇨🇦 Canada Passport (Legacy)",
     "photo_width_mm": 50,
     "photo_height_mm": 70,
     "head_height_ratio": 0.52,
@@ -448,7 +448,7 @@
     "background_rgb": [255, 255, 255]
   },
   "UK": {
-    "name": "UK - Passport (Legacy)",
+    "name": "🇬🇧 UK Passport (Legacy)",
     "photo_width_mm": 35,
     "photo_height_mm": 45,
     "head_height_ratio": 0.62,

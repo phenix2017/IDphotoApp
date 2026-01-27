@@ -127,12 +127,14 @@ def crop_to_spec(
     spec: PhotoSpec,
     dpi: int,
 ) -> np.ndarray:
+    """Crop and resize to spec while maintaining aspect ratio (no face distortion)."""
     out_w, out_h = compute_output_size_px(spec, dpi)
     x_min, y_min, box_w, box_h = bbox
 
     target_head_height = spec.head_height_ratio * out_h
     scale = target_head_height / max(box_h, 1)
 
+    # Scale uniformly to preserve aspect ratio
     resized = cv2.resize(image_bgr, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
 
     eye_x, eye_y = eye_point
@@ -144,7 +146,18 @@ def crop_to_spec(
     left = int(round(eye_x - out_w / 2))
     top = int(round(eye_y - target_eye_y))
 
-    return crop_with_padding(resized, left, top, out_w, out_h, spec.background_rgb)
+    # Crop with padding - maintains aspect ratio
+    cropped = crop_with_padding(resized, left, top, out_w, out_h, spec.background_rgb)
+    
+    # Final resize to exact dimensions if needed (minimal distortion since we've already positioned correctly)
+    # Only resize if aspect ratio is significantly different
+    h, w = cropped.shape[:2]
+    if abs(w/h - out_w/out_h) > 0.05:  # Only if aspect ratio differs by more than 5%
+        # Use INTER_AREA for downsampling, INTER_CUBIC for upsampling
+        interpolation = cv2.INTER_AREA if (w * h > out_w * out_h) else cv2.INTER_CUBIC
+        cropped = cv2.resize(cropped, (out_w, out_h), interpolation=interpolation)
+    
+    return cropped
 
 
 def crop_with_padding(
@@ -188,6 +201,7 @@ def build_print_sheet(
     margin_in: float = 0.25,
     spacing_in: float = 0.05,
     copies: int = 6,
+    draw_guides: bool = True,
 ) -> Image.Image:
     """Build print sheet maximizing photo usage on paper.
     
@@ -245,11 +259,14 @@ def build_print_sheet(
     left_margin = margin + (available_width - total_photos_width) // 2
     top_margin = margin + (available_height - total_photos_height) // 2
     
-    # Create drawing context for guide lines
-    from PIL import ImageDraw
-    draw = ImageDraw.Draw(sheet)
-    guide_color = (200, 200, 200)  # Light gray guide lines
-    guide_width = 2
+    if draw_guides:
+        # Create drawing context for guide lines
+        from PIL import ImageDraw
+        draw = ImageDraw.Draw(sheet)
+        guide_color = (200, 200, 200)  # Light gray cutting guide lines
+        guide_width = 1
+        outline_color = (210, 210, 210)  # Very light gray photo outline for cutting edges
+        outline_width = 1
     
     placed = 0
     for row in range(max_rows):
@@ -260,30 +277,58 @@ def build_print_sheet(
             y = top_margin + row * (photo_h + spacing)
             sheet.paste(photo, (x, y))
             
-            # Draw frame/border around the photo
-            frame_color = (150, 150, 150)  # Dark gray frame
-            frame_width = 2
-            draw.rectangle(
-                [(x, y), (x + photo_w - 1, y + photo_h - 1)],
-                outline=frame_color,
-                width=frame_width
-            )
+            if draw_guides:
+                # Draw subtle outline around each photo for clear cutting edges
+                draw.rectangle(
+                    [(x, y), (x + photo_w - 1, y + photo_h - 1)],
+                    outline=outline_color,
+                    width=outline_width
+                )
             
             placed += 1
         if placed >= copies:
             break
 
-    # Draw vertical guide lines between photos (after photos are placed)
-    for col in range(1, max_cols):
-        x = left_margin + col * (photo_w + spacing) - spacing // 2
-        draw.line([(x, top_margin), (x, top_margin + max_rows * photo_h + (max_rows - 1) * spacing)],
-                  fill=guide_color, width=guide_width)
+    if draw_guides:
+        # Draw vertical guide lines between photos (for cutting guidance)
+        for col in range(1, max_cols):
+            x = left_margin + col * (photo_w + spacing) - spacing // 2
+            draw.line([(x, top_margin), (x, top_margin + max_rows * photo_h + (max_rows - 1) * spacing)],
+                      fill=guide_color, width=guide_width)
 
-    # Draw horizontal guide lines between photos
-    for row in range(1, max_rows):
-        y = top_margin + row * (photo_h + spacing) - spacing // 2
-        draw.line([(left_margin, y), (left_margin + max_cols * photo_w + (max_cols - 1) * spacing, y)],
-                  fill=guide_color, width=guide_width)
+        # Draw horizontal guide lines between photos (for cutting guidance)
+        for row in range(1, max_rows):
+            y = top_margin + row * (photo_h + spacing) - spacing // 2
+            draw.line([(left_margin, y), (left_margin + max_cols * photo_w + (max_cols - 1) * spacing, y)],
+                      fill=guide_color, width=guide_width)
+        
+        # Draw corner markers at photo edges for precise cutting (tiny L-shaped corners at each photo's edges)
+        corner_marker_color = (180, 180, 180)  # Slightly darker gray for visibility
+        corner_size = 5
+        
+        for row in range(max_rows):
+            for col in range(max_cols):
+                if row * max_cols + col >= copies:
+                    break
+                x = left_margin + col * (photo_w + spacing)
+                y = top_margin + row * (photo_h + spacing)
+                
+                # Draw small corner marks at the 4 corners of each photo
+                # Top-left corner
+                draw.line([(x, y), (x + corner_size, y)], fill=corner_marker_color, width=1)
+                draw.line([(x, y), (x, y + corner_size)], fill=corner_marker_color, width=1)
+                
+                # Top-right corner
+                draw.line([(x + photo_w - 1, y), (x + photo_w - 1 - corner_size, y)], fill=corner_marker_color, width=1)
+                draw.line([(x + photo_w - 1, y), (x + photo_w - 1, y + corner_size)], fill=corner_marker_color, width=1)
+                
+                # Bottom-left corner
+                draw.line([(x, y + photo_h - 1), (x + corner_size, y + photo_h - 1)], fill=corner_marker_color, width=1)
+                draw.line([(x, y + photo_h - 1), (x, y + photo_h - 1 - corner_size)], fill=corner_marker_color, width=1)
+                
+                # Bottom-right corner
+                draw.line([(x + photo_w - 1, y + photo_h - 1), (x + photo_w - 1 - corner_size, y + photo_h - 1)], fill=corner_marker_color, width=1)
+                draw.line([(x + photo_w - 1, y + photo_h - 1), (x + photo_w - 1, y + photo_h - 1 - corner_size)], fill=corner_marker_color, width=1)
 
     return sheet
 
