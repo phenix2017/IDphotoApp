@@ -323,8 +323,14 @@ def replace_background(
         cv2.ellipse(face_core, (cx, cy), axes, 0, 0, 360, 255, -1)
         fg_mask = cv2.bitwise_or(fg_mask, face_core)
     background = np.full_like(image_bgr, background_rgb[::-1])  # RGB to BGR
-    condition = fg_mask[:, :, None] > 0
-    return np.where(condition, image_bgr, background)
+
+    # Feather edges for a more natural composite.
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+    fg_mask = cv2.erode(fg_mask, kernel, iterations=1)
+    alpha = cv2.GaussianBlur(fg_mask, (11, 11), 0).astype(np.float32) / 255.0
+    alpha = alpha[:, :, None]
+    composite = image_bgr.astype(np.float32) * alpha + background.astype(np.float32) * (1.0 - alpha)
+    return composite.astype(np.uint8)
 
 
 def compute_output_size_px(spec: PhotoSpec, dpi: int) -> Tuple[int, int]:
