@@ -3,49 +3,103 @@
     "name": "USA - Passport",
     "photo_width_in": 2.0,
     "photo_height_in": 2.0,
-    "head_height_ratio": 0.6,
-    "eye_line_from_bottom_ratio": 0.6,
-    "background_rgb": [255, 255, 255]
+    "head_height_ratio": 0.56,
+    "eye_line_from_bottom_ratio": 0.66,
+    "background_rgb": [
+      255,
+      255,
+      255
+    ],
+    "head_height_ratio_min": 0.5,
+    "head_height_ratio_max": 0.69,
+    "eye_line_from_bottom_ratio_min": 0.56,
+    "eye_line_from_bottom_ratio_max": 0.69,
+    "top_margin_ratio": 0.08
   },
   "US_VISA": {
     "name": "USA - Visa / Immigration",
     "photo_width_in": 2.0,
     "photo_height_in": 2.0,
-    "head_height_ratio": 0.6,
-    "eye_line_from_bottom_ratio": 0.6,
-    "background_rgb": [255, 255, 255]
+    "head_height_ratio": 0.56,
+    "eye_line_from_bottom_ratio": 0.66,
+    "background_rgb": [
+      255,
+      255,
+      255
+    ],
+    "head_height_ratio_min": 0.5,
+    "head_height_ratio_max": 0.69,
+    "eye_line_from_bottom_ratio_min": 0.56,
+    "eye_line_from_bottom_ratio_max": 0.69,
+    "top_margin_ratio": 0.08
   },
   "CA_PASSPORT": {
     "name": "Canada - Passport",
     "photo_width_mm": 50,
     "photo_height_mm": 70,
-    "head_height_ratio": 0.52,
+    "head_height_ratio": 0.4786,
     "eye_line_from_bottom_ratio": 0.6,
-    "background_rgb": [255, 255, 255]
+    "background_rgb": [
+      255,
+      255,
+      255
+    ],
+    "head_height_ratio_min": 0.4429,
+    "head_height_ratio_max": 0.5143,
+    "eye_line_from_bottom_ratio_min": 0.56,
+    "eye_line_from_bottom_ratio_max": 0.64,
+    "top_margin_ratio": 0.08
   },
   "CA_VISA": {
     "name": "Canada - Visa / Immigration",
     "photo_width_mm": 50,
     "photo_height_mm": 70,
-    "head_height_ratio": 0.52,
+    "head_height_ratio": 0.4786,
     "eye_line_from_bottom_ratio": 0.6,
-    "background_rgb": [255, 255, 255]
+    "background_rgb": [
+      255,
+      255,
+      255
+    ],
+    "head_height_ratio_min": 0.4429,
+    "head_height_ratio_max": 0.5143,
+    "eye_line_from_bottom_ratio_min": 0.56,
+    "eye_line_from_bottom_ratio_max": 0.64,
+    "top_margin_ratio": 0.08
   },
   "UK_PASSPORT": {
     "name": "UK - Passport",
     "photo_width_mm": 35,
     "photo_height_mm": 45,
-    "head_height_ratio": 0.62,
+    "head_height_ratio": 0.7,
     "eye_line_from_bottom_ratio": 0.58,
-    "background_rgb": [255, 255, 255]
+    "background_rgb": [
+      255,
+      255,
+      255
+    ],
+    "head_height_ratio_min": 0.6444,
+    "head_height_ratio_max": 0.7556,
+    "eye_line_from_bottom_ratio_min": 0.54,
+    "eye_line_from_bottom_ratio_max": 0.62,
+    "top_margin_ratio": 0.05
   },
   "UK_VISA": {
     "name": "UK - Visa / Immigration",
     "photo_width_mm": 35,
     "photo_height_mm": 45,
-    "head_height_ratio": 0.62,
+    "head_height_ratio": 0.7,
     "eye_line_from_bottom_ratio": 0.58,
-    "background_rgb": [255, 255, 255]
+    "background_rgb": [
+      255,
+      255,
+      255
+    ],
+    "head_height_ratio_min": 0.6444,
+    "head_height_ratio_max": 0.7556,
+    "eye_line_from_bottom_ratio_min": 0.54,
+    "eye_line_from_bottom_ratio_max": 0.62,
+    "top_margin_ratio": 0.05
   },
   "AU_PASSPORT": {
     "name": "Australia - Passport",
@@ -53,7 +107,16 @@
     "photo_height_mm": 45,
     "head_height_ratio": 0.6,
     "eye_line_from_bottom_ratio": 0.6,
-    "background_rgb": [255, 255, 255]
+    "background_rgb": [
+      255,
+      255,
+      255
+    ],
+    "head_height_ratio_min": 0.55,
+    "head_height_ratio_max": 0.65,
+    "eye_line_from_bottom_ratio_min": 0.56,
+    "eye_line_from_bottom_ratio_max": 0.64,
+    "top_margin_ratio": 0.05
   },
   "AU_VISA": {
     "name": "Australia - Visa / Immigration",
@@ -61,7 +124,16 @@
     "photo_height_mm": 50,
     "head_height_ratio": 0.6,
     "eye_line_from_bottom_ratio": 0.6,
-    "background_rgb": [255, 255, 255]
+    "background_rgb": [
+      255,
+      255,
+      255
+    ],
+    "head_height_ratio_min": 0.55,
+    "head_height_ratio_max": 0.65,
+    "eye_line_from_bottom_ratio_min": 0.56,
+    "eye_line_from_bottom_ratio_max": 0.64,
+    "top_margin_ratio": 0.05
   },
   "DE_PASSPORT": {
     "name": "Germany - Passport",
@@ -69,7 +141,16 @@
     "photo_height_mm": 45,
     "head_height_ratio": 0.6,
     "eye_line_from_bottom_ratio": 0.6,
-    "background_rgb": [255, 255, 255]
+    "background_rgb": [
+      255,
+      255,
+      255
+    ],
+    "head_height_ratio_min": 0.55,
+    "head_height_ratio_max": 0.65,
+    "eye_line_from_bottom_ratio_min": 0.56,
+    "eye_line_from_bottom_ratio_max": 0.64,
+    "top_margin_ratio": 0.05
   },
   "FR_PASSPORT": {
     "name": "France - Passport",
@@ -77,7 +158,16 @@
     "photo_height_mm": 45,
     "head_height_ratio": 0.6,
     "eye_line_from_bottom_ratio": 0.6,
-    "background_rgb": [255, 255, 255]
+    "background_rgb": [
+      255,
+      255,
+      255
+    ],
+    "head_height_ratio_min": 0.55,
+    "head_height_ratio_max": 0.65,
+    "eye_line_from_bottom_ratio_min": 0.56,
+    "eye_line_from_bottom_ratio_max": 0.64,
+    "top_margin_ratio": 0.05
   },
   "IT_PASSPORT": {
     "name": "Italy - Passport",
@@ -85,7 +175,16 @@
     "photo_height_mm": 45,
     "head_height_ratio": 0.6,
     "eye_line_from_bottom_ratio": 0.6,
-    "background_rgb": [255, 255, 255]
+    "background_rgb": [
+      255,
+      255,
+      255
+    ],
+    "head_height_ratio_min": 0.55,
+    "head_height_ratio_max": 0.65,
+    "eye_line_from_bottom_ratio_min": 0.56,
+    "eye_line_from_bottom_ratio_max": 0.64,
+    "top_margin_ratio": 0.05
   },
   "ES_PASSPORT": {
     "name": "Spain - Passport",
@@ -93,7 +192,16 @@
     "photo_height_mm": 40,
     "head_height_ratio": 0.62,
     "eye_line_from_bottom_ratio": 0.6,
-    "background_rgb": [255, 255, 255]
+    "background_rgb": [
+      255,
+      255,
+      255
+    ],
+    "head_height_ratio_min": 0.57,
+    "head_height_ratio_max": 0.67,
+    "eye_line_from_bottom_ratio_min": 0.56,
+    "eye_line_from_bottom_ratio_max": 0.64,
+    "top_margin_ratio": 0.05
   },
   "NL_PASSPORT": {
     "name": "Netherlands - Passport",
@@ -101,7 +209,16 @@
     "photo_height_mm": 45,
     "head_height_ratio": 0.6,
     "eye_line_from_bottom_ratio": 0.6,
-    "background_rgb": [255, 255, 255]
+    "background_rgb": [
+      255,
+      255,
+      255
+    ],
+    "head_height_ratio_min": 0.55,
+    "head_height_ratio_max": 0.65,
+    "eye_line_from_bottom_ratio_min": 0.56,
+    "eye_line_from_bottom_ratio_max": 0.64,
+    "top_margin_ratio": 0.05
   },
   "SE_PASSPORT": {
     "name": "Sweden - Passport",
@@ -109,7 +226,16 @@
     "photo_height_mm": 45,
     "head_height_ratio": 0.6,
     "eye_line_from_bottom_ratio": 0.6,
-    "background_rgb": [255, 255, 255]
+    "background_rgb": [
+      255,
+      255,
+      255
+    ],
+    "head_height_ratio_min": 0.55,
+    "head_height_ratio_max": 0.65,
+    "eye_line_from_bottom_ratio_min": 0.56,
+    "eye_line_from_bottom_ratio_max": 0.64,
+    "top_margin_ratio": 0.05
   },
   "CH_PASSPORT": {
     "name": "Switzerland - Passport",
@@ -117,7 +243,16 @@
     "photo_height_mm": 45,
     "head_height_ratio": 0.6,
     "eye_line_from_bottom_ratio": 0.6,
-    "background_rgb": [255, 255, 255]
+    "background_rgb": [
+      255,
+      255,
+      255
+    ],
+    "head_height_ratio_min": 0.55,
+    "head_height_ratio_max": 0.65,
+    "eye_line_from_bottom_ratio_min": 0.56,
+    "eye_line_from_bottom_ratio_max": 0.64,
+    "top_margin_ratio": 0.05
   },
   "JP_PASSPORT": {
     "name": "Japan - Passport",
@@ -125,7 +260,16 @@
     "photo_height_mm": 45,
     "head_height_ratio": 0.65,
     "eye_line_from_bottom_ratio": 0.6,
-    "background_rgb": [255, 255, 255]
+    "background_rgb": [
+      255,
+      255,
+      255
+    ],
+    "head_height_ratio_min": 0.6,
+    "head_height_ratio_max": 0.7,
+    "eye_line_from_bottom_ratio_min": 0.56,
+    "eye_line_from_bottom_ratio_max": 0.64,
+    "top_margin_ratio": 0.05
   },
   "JP_VISA": {
     "name": "Japan - Visa / Immigration",
@@ -133,7 +277,16 @@
     "photo_height_mm": 45,
     "head_height_ratio": 0.65,
     "eye_line_from_bottom_ratio": 0.6,
-    "background_rgb": [255, 255, 255]
+    "background_rgb": [
+      255,
+      255,
+      255
+    ],
+    "head_height_ratio_min": 0.6,
+    "head_height_ratio_max": 0.7,
+    "eye_line_from_bottom_ratio_min": 0.56,
+    "eye_line_from_bottom_ratio_max": 0.64,
+    "top_margin_ratio": 0.05
   },
   "SG_PASSPORT": {
     "name": "Singapore - Passport",
@@ -141,7 +294,16 @@
     "photo_height_mm": 45,
     "head_height_ratio": 0.6,
     "eye_line_from_bottom_ratio": 0.6,
-    "background_rgb": [255, 255, 255]
+    "background_rgb": [
+      255,
+      255,
+      255
+    ],
+    "head_height_ratio_min": 0.55,
+    "head_height_ratio_max": 0.65,
+    "eye_line_from_bottom_ratio_min": 0.56,
+    "eye_line_from_bottom_ratio_max": 0.64,
+    "top_margin_ratio": 0.05
   },
   "SG_VISA": {
     "name": "Singapore - Visa / Immigration",
@@ -149,7 +311,16 @@
     "photo_height_mm": 45,
     "head_height_ratio": 0.6,
     "eye_line_from_bottom_ratio": 0.6,
-    "background_rgb": [255, 255, 255]
+    "background_rgb": [
+      255,
+      255,
+      255
+    ],
+    "head_height_ratio_min": 0.55,
+    "head_height_ratio_max": 0.65,
+    "eye_line_from_bottom_ratio_min": 0.56,
+    "eye_line_from_bottom_ratio_max": 0.64,
+    "top_margin_ratio": 0.05
   },
   "KR_PASSPORT": {
     "name": "South Korea - Passport",
@@ -157,7 +328,16 @@
     "photo_height_mm": 45,
     "head_height_ratio": 0.6,
     "eye_line_from_bottom_ratio": 0.6,
-    "background_rgb": [255, 255, 255]
+    "background_rgb": [
+      255,
+      255,
+      255
+    ],
+    "head_height_ratio_min": 0.55,
+    "head_height_ratio_max": 0.65,
+    "eye_line_from_bottom_ratio_min": 0.56,
+    "eye_line_from_bottom_ratio_max": 0.64,
+    "top_margin_ratio": 0.05
   },
   "KR_VISA": {
     "name": "South Korea - Visa / Immigration",
@@ -165,23 +345,50 @@
     "photo_height_mm": 45,
     "head_height_ratio": 0.6,
     "eye_line_from_bottom_ratio": 0.6,
-    "background_rgb": [255, 255, 255]
+    "background_rgb": [
+      255,
+      255,
+      255
+    ],
+    "head_height_ratio_min": 0.55,
+    "head_height_ratio_max": 0.65,
+    "eye_line_from_bottom_ratio_min": 0.56,
+    "eye_line_from_bottom_ratio_max": 0.64,
+    "top_margin_ratio": 0.05
   },
   "CN_PASSPORT": {
     "name": "China - Passport",
     "photo_width_mm": 33,
     "photo_height_mm": 48,
-    "head_height_ratio": 0.58,
+    "head_height_ratio": 0.6354,
     "eye_line_from_bottom_ratio": 0.6,
-    "background_rgb": [255, 255, 255]
+    "background_rgb": [
+      255,
+      255,
+      255
+    ],
+    "head_height_ratio_min": 0.5833,
+    "head_height_ratio_max": 0.6875,
+    "eye_line_from_bottom_ratio_min": 0.56,
+    "eye_line_from_bottom_ratio_max": 0.64,
+    "top_margin_ratio": 0.05
   },
   "CN_VISA": {
     "name": "China - Visa / Immigration",
     "photo_width_mm": 33,
     "photo_height_mm": 48,
-    "head_height_ratio": 0.58,
+    "head_height_ratio": 0.6354,
     "eye_line_from_bottom_ratio": 0.6,
-    "background_rgb": [255, 255, 255]
+    "background_rgb": [
+      255,
+      255,
+      255
+    ],
+    "head_height_ratio_min": 0.5833,
+    "head_height_ratio_max": 0.6875,
+    "eye_line_from_bottom_ratio_min": 0.56,
+    "eye_line_from_bottom_ratio_max": 0.64,
+    "top_margin_ratio": 0.05
   },
   "IN_PASSPORT": {
     "name": "India - Passport",
@@ -189,7 +396,16 @@
     "photo_height_mm": 45,
     "head_height_ratio": 0.58,
     "eye_line_from_bottom_ratio": 0.6,
-    "background_rgb": [255, 255, 255]
+    "background_rgb": [
+      255,
+      255,
+      255
+    ],
+    "head_height_ratio_min": 0.53,
+    "head_height_ratio_max": 0.63,
+    "eye_line_from_bottom_ratio_min": 0.56,
+    "eye_line_from_bottom_ratio_max": 0.64,
+    "top_margin_ratio": 0.05
   },
   "IN_VISA": {
     "name": "India - Visa / Immigration",
@@ -197,7 +413,16 @@
     "photo_height_mm": 45,
     "head_height_ratio": 0.58,
     "eye_line_from_bottom_ratio": 0.6,
-    "background_rgb": [255, 255, 255]
+    "background_rgb": [
+      255,
+      255,
+      255
+    ],
+    "head_height_ratio_min": 0.53,
+    "head_height_ratio_max": 0.63,
+    "eye_line_from_bottom_ratio_min": 0.56,
+    "eye_line_from_bottom_ratio_max": 0.64,
+    "top_margin_ratio": 0.05
   },
   "NZ_PASSPORT": {
     "name": "New Zealand - Passport",
@@ -205,7 +430,16 @@
     "photo_height_mm": 45,
     "head_height_ratio": 0.6,
     "eye_line_from_bottom_ratio": 0.6,
-    "background_rgb": [255, 255, 255]
+    "background_rgb": [
+      255,
+      255,
+      255
+    ],
+    "head_height_ratio_min": 0.55,
+    "head_height_ratio_max": 0.65,
+    "eye_line_from_bottom_ratio_min": 0.56,
+    "eye_line_from_bottom_ratio_max": 0.64,
+    "top_margin_ratio": 0.05
   },
   "NZ_VISA": {
     "name": "New Zealand - Visa / Immigration",
@@ -213,7 +447,16 @@
     "photo_height_mm": 45,
     "head_height_ratio": 0.6,
     "eye_line_from_bottom_ratio": 0.6,
-    "background_rgb": [255, 255, 255]
+    "background_rgb": [
+      255,
+      255,
+      255
+    ],
+    "head_height_ratio_min": 0.55,
+    "head_height_ratio_max": 0.65,
+    "eye_line_from_bottom_ratio_min": 0.56,
+    "eye_line_from_bottom_ratio_max": 0.64,
+    "top_margin_ratio": 0.05
   },
   "BR_PASSPORT": {
     "name": "Brazil - Passport",
@@ -221,7 +464,16 @@
     "photo_height_mm": 43,
     "head_height_ratio": 0.62,
     "eye_line_from_bottom_ratio": 0.6,
-    "background_rgb": [255, 255, 255]
+    "background_rgb": [
+      255,
+      255,
+      255
+    ],
+    "head_height_ratio_min": 0.57,
+    "head_height_ratio_max": 0.67,
+    "eye_line_from_bottom_ratio_min": 0.56,
+    "eye_line_from_bottom_ratio_max": 0.64,
+    "top_margin_ratio": 0.05
   },
   "MX_PASSPORT": {
     "name": "Mexico - Passport",
@@ -229,7 +481,16 @@
     "photo_height_mm": 40,
     "head_height_ratio": 0.62,
     "eye_line_from_bottom_ratio": 0.6,
-    "background_rgb": [255, 255, 255]
+    "background_rgb": [
+      255,
+      255,
+      255
+    ],
+    "head_height_ratio_min": 0.57,
+    "head_height_ratio_max": 0.67,
+    "eye_line_from_bottom_ratio_min": 0.56,
+    "eye_line_from_bottom_ratio_max": 0.64,
+    "top_margin_ratio": 0.05
   },
   "ZA_PASSPORT": {
     "name": "South Africa - Passport",
@@ -237,7 +498,16 @@
     "photo_height_mm": 45,
     "head_height_ratio": 0.6,
     "eye_line_from_bottom_ratio": 0.6,
-    "background_rgb": [255, 255, 255]
+    "background_rgb": [
+      255,
+      255,
+      255
+    ],
+    "head_height_ratio_min": 0.55,
+    "head_height_ratio_max": 0.65,
+    "eye_line_from_bottom_ratio_min": 0.56,
+    "eye_line_from_bottom_ratio_max": 0.64,
+    "top_margin_ratio": 0.05
   },
   "AE_PASSPORT": {
     "name": "UAE - Passport",
@@ -245,7 +515,16 @@
     "photo_height_mm": 50,
     "head_height_ratio": 0.6,
     "eye_line_from_bottom_ratio": 0.6,
-    "background_rgb": [255, 255, 255]
+    "background_rgb": [
+      255,
+      255,
+      255
+    ],
+    "head_height_ratio_min": 0.55,
+    "head_height_ratio_max": 0.65,
+    "eye_line_from_bottom_ratio_min": 0.56,
+    "eye_line_from_bottom_ratio_max": 0.64,
+    "top_margin_ratio": 0.05
   },
   "AE_VISA": {
     "name": "UAE - Visa / Immigration",
@@ -253,7 +532,16 @@
     "photo_height_mm": 50,
     "head_height_ratio": 0.6,
     "eye_line_from_bottom_ratio": 0.6,
-    "background_rgb": [255, 255, 255]
+    "background_rgb": [
+      255,
+      255,
+      255
+    ],
+    "head_height_ratio_min": 0.55,
+    "head_height_ratio_max": 0.65,
+    "eye_line_from_bottom_ratio_min": 0.56,
+    "eye_line_from_bottom_ratio_max": 0.64,
+    "top_margin_ratio": 0.05
   },
   "TH_PASSPORT": {
     "name": "Thailand - Passport",
@@ -261,7 +549,16 @@
     "photo_height_mm": 50,
     "head_height_ratio": 0.6,
     "eye_line_from_bottom_ratio": 0.6,
-    "background_rgb": [255, 255, 255]
+    "background_rgb": [
+      255,
+      255,
+      255
+    ],
+    "head_height_ratio_min": 0.55,
+    "head_height_ratio_max": 0.65,
+    "eye_line_from_bottom_ratio_min": 0.56,
+    "eye_line_from_bottom_ratio_max": 0.64,
+    "top_margin_ratio": 0.05
   },
   "TH_VISA": {
     "name": "Thailand - Visa / Immigration",
@@ -269,7 +566,16 @@
     "photo_height_mm": 50,
     "head_height_ratio": 0.6,
     "eye_line_from_bottom_ratio": 0.6,
-    "background_rgb": [255, 255, 255]
+    "background_rgb": [
+      255,
+      255,
+      255
+    ],
+    "head_height_ratio_min": 0.55,
+    "head_height_ratio_max": 0.65,
+    "eye_line_from_bottom_ratio_min": 0.56,
+    "eye_line_from_bottom_ratio_max": 0.64,
+    "top_margin_ratio": 0.05
   },
   "MY_PASSPORT": {
     "name": "Malaysia - Passport",
@@ -277,7 +583,16 @@
     "photo_height_mm": 50,
     "head_height_ratio": 0.55,
     "eye_line_from_bottom_ratio": 0.6,
-    "background_rgb": [255, 255, 255]
+    "background_rgb": [
+      255,
+      255,
+      255
+    ],
+    "head_height_ratio_min": 0.5,
+    "head_height_ratio_max": 0.6,
+    "eye_line_from_bottom_ratio_min": 0.56,
+    "eye_line_from_bottom_ratio_max": 0.64,
+    "top_margin_ratio": 0.08
   },
   "ID_PASSPORT": {
     "name": "Indonesia - Passport",
@@ -285,7 +600,16 @@
     "photo_height_mm": 40,
     "head_height_ratio": 0.6,
     "eye_line_from_bottom_ratio": 0.6,
-    "background_rgb": [255, 255, 255]
+    "background_rgb": [
+      255,
+      255,
+      255
+    ],
+    "head_height_ratio_min": 0.55,
+    "head_height_ratio_max": 0.65,
+    "eye_line_from_bottom_ratio_min": 0.56,
+    "eye_line_from_bottom_ratio_max": 0.64,
+    "top_margin_ratio": 0.05
   },
   "PH_PASSPORT": {
     "name": "Philippines - Passport",
@@ -293,7 +617,16 @@
     "photo_height_mm": 45,
     "head_height_ratio": 0.6,
     "eye_line_from_bottom_ratio": 0.6,
-    "background_rgb": [255, 255, 255]
+    "background_rgb": [
+      255,
+      255,
+      255
+    ],
+    "head_height_ratio_min": 0.55,
+    "head_height_ratio_max": 0.65,
+    "eye_line_from_bottom_ratio_min": 0.56,
+    "eye_line_from_bottom_ratio_max": 0.64,
+    "top_margin_ratio": 0.05
   },
   "VN_PASSPORT": {
     "name": "Vietnam - Passport",
@@ -301,7 +634,16 @@
     "photo_height_mm": 45,
     "head_height_ratio": 0.6,
     "eye_line_from_bottom_ratio": 0.6,
-    "background_rgb": [255, 255, 255]
+    "background_rgb": [
+      255,
+      255,
+      255
+    ],
+    "head_height_ratio_min": 0.55,
+    "head_height_ratio_max": 0.65,
+    "eye_line_from_bottom_ratio_min": 0.56,
+    "eye_line_from_bottom_ratio_max": 0.64,
+    "top_margin_ratio": 0.05
   },
   "TR_PASSPORT": {
     "name": "Turkey - Passport",
@@ -309,7 +651,16 @@
     "photo_height_mm": 45,
     "head_height_ratio": 0.6,
     "eye_line_from_bottom_ratio": 0.6,
-    "background_rgb": [255, 255, 255]
+    "background_rgb": [
+      255,
+      255,
+      255
+    ],
+    "head_height_ratio_min": 0.55,
+    "head_height_ratio_max": 0.65,
+    "eye_line_from_bottom_ratio_min": 0.56,
+    "eye_line_from_bottom_ratio_max": 0.64,
+    "top_margin_ratio": 0.05
   },
   "PK_PASSPORT": {
     "name": "Pakistan - Passport",
@@ -317,7 +668,16 @@
     "photo_height_mm": 45,
     "head_height_ratio": 0.58,
     "eye_line_from_bottom_ratio": 0.6,
-    "background_rgb": [255, 255, 255]
+    "background_rgb": [
+      255,
+      255,
+      255
+    ],
+    "head_height_ratio_min": 0.53,
+    "head_height_ratio_max": 0.63,
+    "eye_line_from_bottom_ratio_min": 0.56,
+    "eye_line_from_bottom_ratio_max": 0.64,
+    "top_margin_ratio": 0.05
   },
   "BD_PASSPORT": {
     "name": "Bangladesh - Passport",
@@ -325,7 +685,16 @@
     "photo_height_mm": 45,
     "head_height_ratio": 0.58,
     "eye_line_from_bottom_ratio": 0.6,
-    "background_rgb": [255, 255, 255]
+    "background_rgb": [
+      255,
+      255,
+      255
+    ],
+    "head_height_ratio_min": 0.53,
+    "head_height_ratio_max": 0.63,
+    "eye_line_from_bottom_ratio_min": 0.56,
+    "eye_line_from_bottom_ratio_max": 0.64,
+    "top_margin_ratio": 0.05
   },
   "GR_PASSPORT": {
     "name": "Greece - Passport",
@@ -333,7 +702,16 @@
     "photo_height_mm": 45,
     "head_height_ratio": 0.6,
     "eye_line_from_bottom_ratio": 0.6,
-    "background_rgb": [255, 255, 255]
+    "background_rgb": [
+      255,
+      255,
+      255
+    ],
+    "head_height_ratio_min": 0.55,
+    "head_height_ratio_max": 0.65,
+    "eye_line_from_bottom_ratio_min": 0.56,
+    "eye_line_from_bottom_ratio_max": 0.64,
+    "top_margin_ratio": 0.05
   },
   "PT_PASSPORT": {
     "name": "Portugal - Passport",
@@ -341,7 +719,16 @@
     "photo_height_mm": 45,
     "head_height_ratio": 0.6,
     "eye_line_from_bottom_ratio": 0.6,
-    "background_rgb": [255, 255, 255]
+    "background_rgb": [
+      255,
+      255,
+      255
+    ],
+    "head_height_ratio_min": 0.55,
+    "head_height_ratio_max": 0.65,
+    "eye_line_from_bottom_ratio_min": 0.56,
+    "eye_line_from_bottom_ratio_max": 0.64,
+    "top_margin_ratio": 0.05
   },
   "PL_PASSPORT": {
     "name": "Poland - Passport",
@@ -349,7 +736,16 @@
     "photo_height_mm": 45,
     "head_height_ratio": 0.6,
     "eye_line_from_bottom_ratio": 0.6,
-    "background_rgb": [255, 255, 255]
+    "background_rgb": [
+      255,
+      255,
+      255
+    ],
+    "head_height_ratio_min": 0.55,
+    "head_height_ratio_max": 0.65,
+    "eye_line_from_bottom_ratio_min": 0.56,
+    "eye_line_from_bottom_ratio_max": 0.64,
+    "top_margin_ratio": 0.05
   },
   "CZ_PASSPORT": {
     "name": "Czech Republic - Passport",
@@ -357,7 +753,16 @@
     "photo_height_mm": 45,
     "head_height_ratio": 0.6,
     "eye_line_from_bottom_ratio": 0.6,
-    "background_rgb": [255, 255, 255]
+    "background_rgb": [
+      255,
+      255,
+      255
+    ],
+    "head_height_ratio_min": 0.55,
+    "head_height_ratio_max": 0.65,
+    "eye_line_from_bottom_ratio_min": 0.56,
+    "eye_line_from_bottom_ratio_max": 0.64,
+    "top_margin_ratio": 0.05
   },
   "IE_PASSPORT": {
     "name": "Ireland - Passport",
@@ -365,7 +770,16 @@
     "photo_height_mm": 45,
     "head_height_ratio": 0.62,
     "eye_line_from_bottom_ratio": 0.58,
-    "background_rgb": [255, 255, 255]
+    "background_rgb": [
+      255,
+      255,
+      255
+    ],
+    "head_height_ratio_min": 0.57,
+    "head_height_ratio_max": 0.67,
+    "eye_line_from_bottom_ratio_min": 0.54,
+    "eye_line_from_bottom_ratio_max": 0.62,
+    "top_margin_ratio": 0.05
   },
   "HK_PASSPORT": {
     "name": "Hong Kong - Passport",
@@ -373,7 +787,16 @@
     "photo_height_mm": 45,
     "head_height_ratio": 0.6,
     "eye_line_from_bottom_ratio": 0.6,
-    "background_rgb": [255, 255, 255]
+    "background_rgb": [
+      255,
+      255,
+      255
+    ],
+    "head_height_ratio_min": 0.55,
+    "head_height_ratio_max": 0.65,
+    "eye_line_from_bottom_ratio_min": 0.56,
+    "eye_line_from_bottom_ratio_max": 0.64,
+    "top_margin_ratio": 0.05
   },
   "TW_PASSPORT": {
     "name": "Taiwan - Passport",
@@ -381,7 +804,16 @@
     "photo_height_mm": 45,
     "head_height_ratio": 0.6,
     "eye_line_from_bottom_ratio": 0.6,
-    "background_rgb": [255, 255, 255]
+    "background_rgb": [
+      255,
+      255,
+      255
+    ],
+    "head_height_ratio_min": 0.55,
+    "head_height_ratio_max": 0.65,
+    "eye_line_from_bottom_ratio_min": 0.56,
+    "eye_line_from_bottom_ratio_max": 0.64,
+    "top_margin_ratio": 0.05
   },
   "SCHENGEN": {
     "name": "Schengen Visa - EU",
@@ -389,7 +821,16 @@
     "photo_height_mm": 45,
     "head_height_ratio": 0.6,
     "eye_line_from_bottom_ratio": 0.6,
-    "background_rgb": [255, 255, 255]
+    "background_rgb": [
+      255,
+      255,
+      255
+    ],
+    "head_height_ratio_min": 0.55,
+    "head_height_ratio_max": 0.65,
+    "eye_line_from_bottom_ratio_min": 0.56,
+    "eye_line_from_bottom_ratio_max": 0.64,
+    "top_margin_ratio": 0.05
   },
   "NO_PASSPORT": {
     "name": "Norway - Passport",
@@ -397,7 +838,16 @@
     "photo_height_mm": 45,
     "head_height_ratio": 0.6,
     "eye_line_from_bottom_ratio": 0.6,
-    "background_rgb": [255, 255, 255]
+    "background_rgb": [
+      255,
+      255,
+      255
+    ],
+    "head_height_ratio_min": 0.55,
+    "head_height_ratio_max": 0.65,
+    "eye_line_from_bottom_ratio_min": 0.56,
+    "eye_line_from_bottom_ratio_max": 0.64,
+    "top_margin_ratio": 0.05
   },
   "DK_PASSPORT": {
     "name": "Denmark - Passport",
@@ -405,7 +855,16 @@
     "photo_height_mm": 45,
     "head_height_ratio": 0.6,
     "eye_line_from_bottom_ratio": 0.6,
-    "background_rgb": [255, 255, 255]
+    "background_rgb": [
+      255,
+      255,
+      255
+    ],
+    "head_height_ratio_min": 0.55,
+    "head_height_ratio_max": 0.65,
+    "eye_line_from_bottom_ratio_min": 0.56,
+    "eye_line_from_bottom_ratio_max": 0.64,
+    "top_margin_ratio": 0.05
   },
   "FI_PASSPORT": {
     "name": "Finland - Passport",
@@ -413,7 +872,16 @@
     "photo_height_mm": 45,
     "head_height_ratio": 0.6,
     "eye_line_from_bottom_ratio": 0.6,
-    "background_rgb": [255, 255, 255]
+    "background_rgb": [
+      255,
+      255,
+      255
+    ],
+    "head_height_ratio_min": 0.55,
+    "head_height_ratio_max": 0.65,
+    "eye_line_from_bottom_ratio_min": 0.56,
+    "eye_line_from_bottom_ratio_max": 0.64,
+    "top_margin_ratio": 0.05
   },
   "BE_PASSPORT": {
     "name": "Belgium - Passport",
@@ -421,7 +889,16 @@
     "photo_height_mm": 45,
     "head_height_ratio": 0.6,
     "eye_line_from_bottom_ratio": 0.6,
-    "background_rgb": [255, 255, 255]
+    "background_rgb": [
+      255,
+      255,
+      255
+    ],
+    "head_height_ratio_min": 0.55,
+    "head_height_ratio_max": 0.65,
+    "eye_line_from_bottom_ratio_min": 0.56,
+    "eye_line_from_bottom_ratio_max": 0.64,
+    "top_margin_ratio": 0.05
   },
   "AT_PASSPORT": {
     "name": "Austria - Passport",
@@ -429,30 +906,66 @@
     "photo_height_mm": 45,
     "head_height_ratio": 0.6,
     "eye_line_from_bottom_ratio": 0.6,
-    "background_rgb": [255, 255, 255]
+    "background_rgb": [
+      255,
+      255,
+      255
+    ],
+    "head_height_ratio_min": 0.55,
+    "head_height_ratio_max": 0.65,
+    "eye_line_from_bottom_ratio_min": 0.56,
+    "eye_line_from_bottom_ratio_max": 0.64,
+    "top_margin_ratio": 0.05
   },
   "US": {
     "name": "USA - Passport (Legacy)",
     "photo_width_in": 2.0,
     "photo_height_in": 2.0,
-    "head_height_ratio": 0.6,
-    "eye_line_from_bottom_ratio": 0.6,
-    "background_rgb": [255, 255, 255]
+    "head_height_ratio": 0.56,
+    "eye_line_from_bottom_ratio": 0.66,
+    "background_rgb": [
+      255,
+      255,
+      255
+    ],
+    "head_height_ratio_min": 0.5,
+    "head_height_ratio_max": 0.69,
+    "eye_line_from_bottom_ratio_min": 0.56,
+    "eye_line_from_bottom_ratio_max": 0.69,
+    "top_margin_ratio": 0.08
   },
   "CA": {
     "name": "Canada - Passport (Legacy)",
     "photo_width_mm": 50,
     "photo_height_mm": 70,
-    "head_height_ratio": 0.52,
+    "head_height_ratio": 0.4786,
     "eye_line_from_bottom_ratio": 0.6,
-    "background_rgb": [255, 255, 255]
+    "background_rgb": [
+      255,
+      255,
+      255
+    ],
+    "head_height_ratio_min": 0.4429,
+    "head_height_ratio_max": 0.5143,
+    "eye_line_from_bottom_ratio_min": 0.56,
+    "eye_line_from_bottom_ratio_max": 0.64,
+    "top_margin_ratio": 0.08
   },
   "UK": {
     "name": "UK - Passport (Legacy)",
     "photo_width_mm": 35,
     "photo_height_mm": 45,
-    "head_height_ratio": 0.62,
+    "head_height_ratio": 0.7,
     "eye_line_from_bottom_ratio": 0.58,
-    "background_rgb": [255, 255, 255]
+    "background_rgb": [
+      255,
+      255,
+      255
+    ],
+    "head_height_ratio_min": 0.6444,
+    "head_height_ratio_max": 0.7556,
+    "eye_line_from_bottom_ratio_min": 0.54,
+    "eye_line_from_bottom_ratio_max": 0.62,
+    "top_margin_ratio": 0.05
   }
 }

@@ -25,6 +25,7 @@ except ImportError:  # pragma: no cover - optional
     mp = None
 
 _selfie_segmenter = None
+_mp_face_detector = None
 
 
 @dataclass
@@ -35,6 +36,7 @@ class PhotoSpec:
     head_height_ratio: float
     eye_line_from_bottom_ratio: float
     background_rgb: Tuple[int, int, int]
+    top_margin_ratio: float
 
 
 @dataclass
@@ -53,6 +55,7 @@ def load_specs(path: Path) -> Dict[str, PhotoSpec]:
             width_in = value["photo_width_mm"] / 25.4
         if height_in is None:
             height_in = value["photo_height_mm"] / 25.4
+        top_margin_ratio = value.get("top_margin_ratio", 0.05)
         specs[key] = PhotoSpec(
             name=value["name"],
             width_in=width_in,
@@ -60,12 +63,40 @@ def load_specs(path: Path) -> Dict[str, PhotoSpec]:
             head_height_ratio=value["head_height_ratio"],
             eye_line_from_bottom_ratio=value["eye_line_from_bottom_ratio"],
             background_rgb=tuple(value["background_rgb"]),
+            top_margin_ratio=top_margin_ratio,
         )
     return specs
 
 
 def detect_face(image_bgr: np.ndarray) -> Tuple[Tuple[int, int, int, int], Tuple[int, int]]:
-    """Detect face using OpenCV cascade classifier (no MediaPipe dependency)."""
+    """Detect face using the best available detector."""
+    mp_detector = _get_mp_face_detector()
+    if mp_detector is not None:
+        try:
+            detector, mp_image_mod = mp_detector
+            image_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
+            mp_image = mp_image_mod.Image(
+                image_format=mp_image_mod.ImageFormat.SRGB,
+                data=image_rgb,
+            )
+            result = detector.detect(mp_image)
+            detections = getattr(result, "detections", None) or []
+            if detections:
+                def score(d):
+                    try:
+                        return float(d.categories[0].score)
+                    except Exception:
+                        return 0.0
+                det = max(detections, key=score)
+                bbox = det.bounding_box
+                x, y, w, h = int(bbox.origin_x), int(bbox.origin_y), int(bbox.width), int(bbox.height)
+                eye_x = x + w // 2
+                eye_y = y + int(h * 0.35)
+                return (x, y, w, h), (eye_x, eye_y)
+        except Exception:
+            pass
+
+    """Detect face using OpenCV cascade classifier (fallback)."""
     
     # Load OpenCV cascade classifier
     cascade_path = cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
@@ -90,6 +121,50 @@ def detect_face(image_bgr: np.ndarray) -> Tuple[Tuple[int, int, int, int], Tuple
     eye_y = y + int(h * 0.35)
     
     return (x, y, w, h), (eye_x, eye_y)
+
+
+def _get_mp_face_detector():
+    global _mp_face_detector
+    if _mp_face_detector is not None:
+        return _mp_face_detector
+    if mp is None:
+        return None
+    try:
+        from mediapipe.tasks.python import vision as mp_vision
+        from mediapipe.tasks.python.core import base_options as mp_base_options
+        from mediapipe.tasks.python.vision.core import image as mp_image_mod
+    except Exception:
+        return None
+
+    model_candidates = []
+    env_path = os.environ.get("MP_FACE_MODEL")
+    if env_path:
+        model_candidates.append(Path(env_path))
+    models_dir = Path(__file__).resolve().parent / "models"
+    model_candidates.extend(
+        [
+            models_dir / "face_detector.tflite",
+            models_dir / "face_detection_short_range.tflite",
+            models_dir / "blaze_face_short_range.tflite",
+            models_dir / "face_detector.task",
+            models_dir / "face_detection_short_range.task",
+        ]
+    )
+    model_path = next((p for p in model_candidates if p.exists()), None)
+    if model_path is None:
+        return None
+
+    options = mp_vision.FaceDetectorOptions(
+        base_options=mp_base_options.BaseOptions(model_asset_path=str(model_path)),
+        min_detection_confidence=0.5,
+        min_suppression_threshold=0.3,
+    )
+    try:
+        detector = mp_vision.FaceDetector.create_from_options(options)
+    except Exception:
+        return None
+    _mp_face_detector = (detector, mp_image_mod)
+    return _mp_face_detector
 
 
 def _foreground_mask_hsv(image_bgr: np.ndarray) -> np.ndarray:
@@ -350,7 +425,9 @@ def crop_to_spec(
     x_min, y_min, box_w, box_h = bbox
 
     target_head_height = spec.head_height_ratio * out_h
-    scale = target_head_height / max(box_h, 1)
+    # Inflate the face box to avoid cutting off the head for tighter detectors.
+    inflate = 1.15
+    scale = target_head_height / max(box_h * inflate, 1)
 
     # Scale uniformly to preserve aspect ratio
     resized = cv2.resize(image_bgr, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
@@ -363,6 +440,16 @@ def crop_to_spec(
 
     left = int(round(eye_x - out_w / 2))
     top = int(round(eye_y - target_eye_y))
+
+    # Ensure a small top margin so the head isn't tight to the frame.
+    # Estimate head top slightly above detected box to account for hairline.
+    head_top = int(round((y_min - box_h * 0.15) * scale))
+    # Provide more headroom (common ID specs expect visible margin above head).
+    min_top_margin = int(round(out_h * spec.top_margin_ratio))
+    extra_headroom = int(round(out_h * 0.02))
+    desired_top = head_top - min_top_margin - extra_headroom
+    if top > desired_top:
+        top = desired_top
 
     # Crop with padding - maintains aspect ratio
     pad_rgb = background_rgb if background_rgb is not None else spec.background_rgb
