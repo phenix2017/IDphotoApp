@@ -353,7 +353,11 @@ with st.sidebar:
 
     st.divider()
     st.markdown("### 🖼️ Display")
-    show_guides = st.checkbox("Show crop frames and guide lines", value=False, help="Toggle crop frames, tolerance zones, and guide lines on previews")
+    show_guides = st.checkbox(
+        "Show crop frames and guide lines",
+        value=True,
+        help="Toggle crop frames and guide lines on previews (enabled by default for manual mode).",
+    )
     show_sheet_guides = st.checkbox("Show print sheet cut lines", value=False, help="Toggle cut lines, outlines, and corner marks on the print sheet")
     show_mask_debug = st.checkbox(
         "Show background mask preview",
@@ -579,10 +583,10 @@ if uploaded_file:
                 st.markdown("---")
                 
                 # Slider controls for manual adjustment
-                st.markdown("### 🎯 Adjust Crop Boundaries")
-                st.markdown("*Drag sliders to position the crop frame around the head and shoulders*")
+                st.markdown("### 🎯 Manual Crop Controls")
+                st.markdown("*Use the buttons below to resize and move the crop frame.*")
                 
-                # Create sliders with default values optimized for target photo format
+                # Compute defaults optimized for target photo format
                 h, w = image_bgr.shape[:2]
                 image_aspect_ratio = w / h
                 
@@ -804,54 +808,45 @@ if uploaded_file:
                         # Draw rectangle showing crop area on zoomed image
                         img_display = image_zoomed.copy()
                         
-                        # Draw outer rectangle with thick green border
-                        cv2.rectangle(img_display, (x1, y1), (x2, y2), (0, 255, 0), 4)
+                        # Draw outer rectangle with a thinner border
+                        cv2.rectangle(img_display, (x1, y1), (x2, y2), (0, 200, 0), 2)
                         
                         # Add guide lines for correct positioning
                         crop_h = y2 - y1
                         crop_w = x2 - x1
                         tolerance_px = int(crop_h * tolerance)
                         
-                        # Forehead tolerance zone (top area)
-                        forehead_y = y1 + int(crop_h * 0.1)
-                        forehead_top = max(y1, forehead_y - tolerance_px)
-                        forehead_bottom = forehead_y + tolerance_px
-                        cv2.line(img_display, (x1, forehead_top), (x2, forehead_top), (100, 255, 255), 1)  # Top boundary
-                        cv2.line(img_display, (x1, forehead_y), (x2, forehead_y), (0, 200, 255), 1)  # Center line
-                        cv2.line(img_display, (x1, forehead_bottom), (x2, forehead_bottom), (100, 255, 255), 1)  # Bottom boundary
-                        cv2.putText(img_display, "Forehead", (x1 + 5, forehead_y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 200, 255), 1)
+                        # Top of head guide
+                        head_top_y = y1 + int(crop_h * 0.05)
+                        head_top_zone_top = max(y1, head_top_y - tolerance_px)
+                        head_top_zone_bottom = head_top_y + tolerance_px
+                        cv2.line(img_display, (x1, head_top_zone_top), (x2, head_top_zone_top), (170, 170, 170), 1)
+                        cv2.line(img_display, (x1, head_top_y), (x2, head_top_y), (150, 150, 150), 1)
+                        cv2.line(img_display, (x1, head_top_zone_bottom), (x2, head_top_zone_bottom), (170, 170, 170), 1)
+                        cv2.putText(img_display, "Head Top", (x1 + 5, head_top_y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (150, 150, 150), 1)
                         
                         # Eye line tolerance zone
                         eye_line_y = y1 + int(crop_h * (1 - specs[country].eye_line_from_bottom_ratio))
                         eye_top = eye_line_y - tolerance_px
                         eye_bottom = eye_line_y + tolerance_px
-                        cv2.line(img_display, (x1, eye_top), (x2, eye_top), (255, 100, 255), 1)  # Top boundary
-                        cv2.line(img_display, (x1, eye_line_y), (x2, eye_line_y), (255, 0, 255), 1)  # Center line
-                        cv2.line(img_display, (x1, eye_bottom), (x2, eye_bottom), (255, 100, 255), 1)  # Bottom boundary
-                        cv2.putText(img_display, "Eyes", (x1 + 5, eye_line_y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 0, 255), 1)
+                        cv2.line(img_display, (x1, eye_top), (x2, eye_top), (180, 180, 180), 1)
+                        cv2.line(img_display, (x1, eye_line_y), (x2, eye_line_y), (160, 160, 160), 1)
+                        cv2.line(img_display, (x1, eye_bottom), (x2, eye_bottom), (180, 180, 180), 1)
+                        cv2.putText(img_display, "Eyes", (x1 + 5, eye_line_y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (160, 160, 160), 1)
                         
-                        # Shoulders/chest tolerance zone (bottom area)
+                        # Shoulders / mid-chest guide (bottom)
                         shoulders_y = y2 - int(crop_h * 0.15)
                         shoulders_top = shoulders_y - tolerance_px
                         shoulders_bottom = min(y2, shoulders_y + tolerance_px)
-                        cv2.line(img_display, (x1, shoulders_top), (x2, shoulders_top), (100, 200, 100), 1)  # Top boundary
-                        cv2.line(img_display, (x1, shoulders_y), (x2, shoulders_y), (0, 200, 0), 1)  # Center line
-                        cv2.line(img_display, (x1, shoulders_bottom), (x2, shoulders_bottom), (100, 200, 100), 1)  # Bottom boundary
-                        cv2.putText(img_display, "Shoulders", (x1 + 5, shoulders_y + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 200, 0), 1)
-                        
-                        # Head top tolerance zone
-                        head_top_y = y1 + int(crop_h * 0.05)
-                        head_top_zone_top = max(y1, head_top_y - tolerance_px)
-                        head_top_zone_bottom = head_top_y + tolerance_px
-                        cv2.line(img_display, (x1, head_top_zone_top), (x2, head_top_zone_top), (200, 150, 100), 1)  # Top boundary
-                        cv2.line(img_display, (x1, head_top_y), (x2, head_top_y), (0, 165, 255), 1)  # Center line
-                        cv2.line(img_display, (x1, head_top_zone_bottom), (x2, head_top_zone_bottom), (200, 150, 100), 1)  # Bottom boundary
-                        cv2.putText(img_display, "Head Top", (x1 + 5, head_top_y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 165, 255), 1)
+                        cv2.line(img_display, (x1, shoulders_top), (x2, shoulders_top), (170, 170, 170), 1)
+                        cv2.line(img_display, (x1, shoulders_y), (x2, shoulders_y), (150, 150, 150), 1)
+                        cv2.line(img_display, (x1, shoulders_bottom), (x2, shoulders_bottom), (170, 170, 170), 1)
+                        cv2.putText(img_display, "Shoulders", (x1 + 5, shoulders_y + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (150, 150, 150), 1)
                         
                         # Add center vertical line
                         center_x_line = (x1 + x2) // 2
-                        cv2.line(img_display, (center_x_line, y1), (center_x_line, y2), (200, 200, 0), 1)  # Yellow
-                        cv2.putText(img_display, "Center", (center_x_line + 5, y1 + 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 0), 1)
+                        cv2.line(img_display, (center_x_line, y1), (center_x_line, y2), (200, 200, 200), 1)
+                        cv2.putText(img_display, "Center", (center_x_line + 5, y1 + 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (190, 190, 190), 1)
                         
                         # Add corner markers
                         corner_size = 20
@@ -912,40 +907,40 @@ if uploaded_file:
                     # Display final photo (optional guide overlay)
                     final_photo_display = cv2.cvtColor(cropped_bgr, cv2.COLOR_BGR2RGB)
                     if show_guides:
-                        # Add guide lines to final photo as well
+                        # Add guide lines to final photo as well (Head Top / Eyes / Shoulders)
                         final_display = final_photo_display.copy()
                         final_h, final_w = final_display.shape[:2]
                         tolerance_px_final = int(final_h * tolerance)
                         
-                        # Forehead tolerance zone
-                        forehead_final = int(final_h * 0.1)
-                        forehead_top_final = max(0, forehead_final - tolerance_px_final)
-                        forehead_bottom_final = forehead_final + tolerance_px_final
-                        cv2.line(final_display, (0, forehead_top_final), (final_w, forehead_top_final), (100, 255, 255), 1)
-                        cv2.line(final_display, (0, forehead_final), (final_w, forehead_final), (0, 200, 255), 1)
-                        cv2.line(final_display, (0, forehead_bottom_final), (final_w, forehead_bottom_final), (100, 255, 255), 1)
-                        cv2.putText(final_display, "Forehead", (5, forehead_final - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 200, 255), 1)
+                        # Top of head guide
+                        head_top_final = int(final_h * 0.05)
+                        head_top_zone_top = max(0, head_top_final - tolerance_px_final)
+                        head_top_zone_bottom = head_top_final + tolerance_px_final
+                        cv2.line(final_display, (0, head_top_zone_top), (final_w, head_top_zone_top), (170, 170, 170), 1)
+                        cv2.line(final_display, (0, head_top_final), (final_w, head_top_final), (150, 150, 150), 1)
+                        cv2.line(final_display, (0, head_top_zone_bottom), (final_w, head_top_zone_bottom), (170, 170, 170), 1)
+                        cv2.putText(final_display, "Head Top", (5, head_top_final - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (150, 150, 150), 1)
                         
                         # Eye line tolerance zone
                         eye_line_final = int(final_h * (1 - specs[country].eye_line_from_bottom_ratio))
                         eye_top_final = eye_line_final - tolerance_px_final
                         eye_bottom_final = eye_line_final + tolerance_px_final
-                        cv2.line(final_display, (0, eye_top_final), (final_w, eye_top_final), (255, 100, 255), 1)
-                        cv2.line(final_display, (0, eye_line_final), (final_w, eye_line_final), (255, 0, 255), 1)
-                        cv2.line(final_display, (0, eye_bottom_final), (final_w, eye_bottom_final), (255, 100, 255), 1)
-                        cv2.putText(final_display, "Eyes", (5, eye_line_final - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 0, 255), 1)
+                        cv2.line(final_display, (0, eye_top_final), (final_w, eye_top_final), (180, 180, 180), 1)
+                        cv2.line(final_display, (0, eye_line_final), (final_w, eye_line_final), (160, 160, 160), 1)
+                        cv2.line(final_display, (0, eye_bottom_final), (final_w, eye_bottom_final), (180, 180, 180), 1)
+                        cv2.putText(final_display, "Eyes", (5, eye_line_final - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (160, 160, 160), 1)
                         
-                        # Shoulders tolerance zone
-                        shoulders_final = int(final_h * 0.8)
+                        # Shoulders / mid-chest guide (bottom)
+                        shoulders_final = int(final_h * 0.85)
                         shoulders_top_final = shoulders_final - tolerance_px_final
                         shoulders_bottom_final = min(final_h, shoulders_final + tolerance_px_final)
-                        cv2.line(final_display, (0, shoulders_top_final), (final_w, shoulders_top_final), (100, 200, 100), 1)
-                        cv2.line(final_display, (0, shoulders_final), (final_w, shoulders_final), (0, 200, 0), 1)
-                        cv2.line(final_display, (0, shoulders_bottom_final), (final_w, shoulders_bottom_final), (100, 200, 100), 1)
-                        cv2.putText(final_display, "Mid-Chest", (5, shoulders_final + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 200, 0), 1)
+                        cv2.line(final_display, (0, shoulders_top_final), (final_w, shoulders_top_final), (170, 170, 170), 1)
+                        cv2.line(final_display, (0, shoulders_final), (final_w, shoulders_final), (150, 150, 150), 1)
+                        cv2.line(final_display, (0, shoulders_bottom_final), (final_w, shoulders_bottom_final), (170, 170, 170), 1)
+                        cv2.putText(final_display, "Shoulders", (5, shoulders_final + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (150, 150, 150), 1)
                         
                         st.image(Image.fromarray(final_display), 
-                                caption="Final ID Photo with Tolerance Zones",
+                                caption="Final ID Photo with Guides",
                                 use_container_width=True)
                     else:
                         st.image(Image.fromarray(final_photo_display), 
