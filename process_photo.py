@@ -24,8 +24,30 @@ try:
 except ImportError:  # pragma: no cover - optional
     mp = None
 
+try:
+    from rembg import new_session as rembg_new_session
+    from rembg import remove as rembg_remove
+except ImportError:  # pragma: no cover - optional high-quality backend
+    rembg_new_session = None
+    rembg_remove = None
+
+try:
+    import torch
+    import torch.nn.functional as torch_f
+    from torchvision import transforms as torch_transforms
+    from transformers import AutoModelForImageSegmentation
+except ImportError:  # pragma: no cover - optional best-quality backend
+    torch = None
+    torch_f = None
+    torch_transforms = None
+    AutoModelForImageSegmentation = None
+
 _selfie_segmenter = None
 _mp_face_detector = None
+_birefnet_model = None
+_birefnet_device = None
+_birefnet_transform = None
+_rembg_sessions: Dict[str, object] = {}
 
 
 @dataclass
@@ -201,6 +223,137 @@ def _border_stats(image_bgr: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     return mean, std
 
 
+def _get_birefnet_model():
+    global _birefnet_model, _birefnet_device, _birefnet_transform
+    if os.environ.get("IDPHOTO_DISABLE_BIREFNET") == "1":
+        return None
+    if torch is None or torch_f is None or torch_transforms is None or AutoModelForImageSegmentation is None:
+        return None
+    if _birefnet_model is not None:
+        return _birefnet_model, _birefnet_device, _birefnet_transform
+
+    model_name = os.environ.get("IDPHOTO_BIREFNET_MODEL", "ZhengPeng7/BiRefNet-portrait")
+    input_size = int(os.environ.get("IDPHOTO_BIREFNET_SIZE", "1024"))
+    try:
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        model = AutoModelForImageSegmentation.from_pretrained(
+            model_name,
+            trust_remote_code=True,
+        )
+        model.to(device)
+        model.eval()
+        transform = torch_transforms.Compose(
+            [
+                torch_transforms.Resize((input_size, input_size)),
+                torch_transforms.ToTensor(),
+                torch_transforms.Normalize(
+                    mean=[0.485, 0.456, 0.406],
+                    std=[0.229, 0.224, 0.225],
+                ),
+            ]
+        )
+    except Exception:
+        return None
+
+    _birefnet_model = model
+    _birefnet_device = device
+    _birefnet_transform = transform
+    return _birefnet_model, _birefnet_device, _birefnet_transform
+
+
+def _birefnet_alpha_mask(
+    image_bgr: np.ndarray,
+    face_bbox: Optional[Tuple[int, int, int, int]] = None,
+) -> Optional[np.ndarray]:
+    backend = _get_birefnet_model()
+    if backend is None:
+        return None
+
+    model, device, transform = backend
+    try:
+        image_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
+        pil_image = Image.fromarray(image_rgb)
+        tensor = transform(pil_image).unsqueeze(0).to(device)
+        with torch.no_grad():
+            output = model(tensor)
+        pred = output[-1] if isinstance(output, (list, tuple)) else output
+        if isinstance(pred, (list, tuple)):
+            pred = pred[-1]
+        if pred.ndim == 3:
+            pred = pred.unsqueeze(1)
+        pred = torch.sigmoid(pred[:, 0:1, :, :])
+        pred = torch_f.interpolate(
+            pred,
+            size=image_bgr.shape[:2],
+            mode="bilinear",
+            align_corners=False,
+        )
+        alpha = (pred[0, 0].detach().cpu().numpy() * 255.0).clip(0, 255).astype(np.uint8)
+    except Exception:
+        return None
+
+    if not _mask_is_usable((alpha > 16).astype(np.uint8) * 255, face_bbox):
+        return None
+    return _sharpen_alpha_edges(alpha)
+
+
+def _get_rembg_session(model_name: Optional[str] = None):
+    if rembg_new_session is None:
+        return None
+
+    model = model_name or os.environ.get("IDPHOTO_REMBG_MODEL", "u2net_human_seg")
+    if model not in _rembg_sessions:
+        try:
+            _rembg_sessions[model] = rembg_new_session(model)
+        except Exception:
+            return None
+    return _rembg_sessions[model]
+
+
+def _rembg_alpha_mask(
+    image_bgr: np.ndarray,
+    face_bbox: Optional[Tuple[int, int, int, int]] = None,
+    model_name: Optional[str] = None,
+) -> Optional[np.ndarray]:
+    """Return a soft foreground alpha mask from rembg, or None if unavailable."""
+    if rembg_remove is None:
+        return None
+
+    session = _get_rembg_session(model_name)
+    if session is None:
+        return None
+
+    try:
+        image_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
+        pil_image = Image.fromarray(image_rgb)
+        cutout = rembg_remove(
+            pil_image,
+            session=session,
+            alpha_matting=True,
+            alpha_matting_foreground_threshold=240,
+            alpha_matting_background_threshold=10,
+            alpha_matting_erode_size=8,
+            post_process_mask=True,
+        )
+        rgba = np.array(cutout.convert("RGBA"))
+    except Exception:
+        return None
+
+    alpha = rgba[:, :, 3].astype(np.uint8)
+    if not _mask_is_usable((alpha > 16).astype(np.uint8) * 255, face_bbox):
+        return None
+    return _sharpen_alpha_edges(alpha)
+
+
+def _sharpen_alpha_edges(alpha: np.ndarray) -> np.ndarray:
+    """Narrow rembg's soft transition band so cutouts stay crisp on white."""
+    alpha_float = alpha.astype(np.float32) / 255.0
+    alpha_float = np.clip((alpha_float - 0.18) / 0.64, 0.0, 1.0)
+    alpha_float = alpha_float * alpha_float * (3.0 - 2.0 * alpha_float)
+    sharpened = (alpha_float * 255.0).astype(np.uint8)
+    return cv2.medianBlur(sharpened, 3)
+
+
 def _white_key_mask(image_bgr: np.ndarray, bg_tolerance: float) -> Optional[np.ndarray]:
     mean, std = _border_stats(image_bgr)
     if float(np.mean(mean)) < (180 - max(0.0, bg_tolerance - 25.0)) or float(np.mean(std)) > 40:
@@ -233,9 +386,20 @@ def _border_color_key_mask(image_bgr: np.ndarray, bg_tolerance: float) -> Option
     if mean_std > 45:
         return None
 
-    diff = np.linalg.norm(image_bgr.astype(np.float32) - mean.astype(np.float32), axis=2)
+    image_float = image_bgr.astype(np.float32)
+    diff = np.linalg.norm(image_float - mean.astype(np.float32), axis=2)
     thresh = max(10.0, bg_tolerance) + 1.5 * mean_std
     bg_candidate = (diff < thresh).astype(np.uint8) * 255
+
+    # Light walls often cast gray shadows behind the head. Treat connected,
+    # low-saturation, reasonably bright areas as background even when darker
+    # than the border mean, but leave dark hair/clothing to segmentation.
+    hsv = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2HSV)
+    _, sat, val = cv2.split(hsv)
+    border_brightness = float(np.mean(mean))
+    if border_brightness > 150:
+        shadow_bg = (sat < 65) & (val > max(105, border_brightness - 95))
+        bg_candidate = cv2.bitwise_or(bg_candidate, shadow_bg.astype(np.uint8) * 255)
 
     # Keep only background regions connected to the border.
     num_labels, labels = cv2.connectedComponents(bg_candidate)
@@ -259,6 +423,49 @@ def _border_color_key_mask(image_bgr: np.ndarray, bg_tolerance: float) -> Option
     return fg_mask
 
 
+def _border_connected_light_background_mask(image_bgr: np.ndarray, bg_tolerance: float) -> Optional[np.ndarray]:
+    """Return background-like light wall/shadow pixels connected to the image border."""
+    mean, std = _border_stats(image_bgr)
+    mean_std = float(np.mean(std))
+    border_brightness = float(np.mean(mean))
+    if border_brightness < 135 or mean_std > 60:
+        return None
+
+    image_float = image_bgr.astype(np.float32)
+    diff = np.linalg.norm(image_float - mean.astype(np.float32), axis=2)
+    hsv = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2HSV)
+    _, sat, val = cv2.split(hsv)
+
+    # Passport shadows on a white/off-white wall are usually darker but still
+    # low-saturation. Use border connectivity so only wall regions are removed.
+    close_to_wall = diff < (max(18.0, bg_tolerance * 1.25) + 1.5 * mean_std)
+    light_shadow = (sat < min(90, max(45, bg_tolerance * 2.2))) & (
+        val > max(90, border_brightness - (70 + bg_tolerance))
+    )
+    bg_candidate = (close_to_wall | light_shadow).astype(np.uint8) * 255
+
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+    bg_candidate = cv2.morphologyEx(bg_candidate, cv2.MORPH_CLOSE, kernel, iterations=2)
+
+    num_labels, labels = cv2.connectedComponents(bg_candidate)
+    if num_labels <= 1:
+        return None
+
+    border_labels = set()
+    h, w = labels.shape
+    border_labels.update(np.unique(labels[0, :]).tolist())
+    border_labels.update(np.unique(labels[h - 1, :]).tolist())
+    border_labels.update(np.unique(labels[:, 0]).tolist())
+    border_labels.update(np.unique(labels[:, w - 1]).tolist())
+    border_labels.discard(0)
+    if not border_labels:
+        return None
+
+    bg_mask = np.isin(labels, list(border_labels)).astype(np.uint8) * 255
+    bg_mask = cv2.dilate(bg_mask, kernel, iterations=1)
+    return cv2.medianBlur(bg_mask, 5)
+
+
 def _get_selfie_segmenter():
     global _selfie_segmenter
     if _selfie_segmenter is None and mp is not None:
@@ -266,6 +473,72 @@ def _get_selfie_segmenter():
             return None
         _selfie_segmenter = mp.solutions.selfie_segmentation.SelfieSegmentation(model_selection=1)
     return _selfie_segmenter
+
+
+def _mask_is_usable(
+    mask: np.ndarray,
+    face_bbox: Optional[Tuple[int, int, int, int]] = None,
+) -> bool:
+    fg_ratio = float(np.mean(mask > 0))
+    if not 0.02 < fg_ratio < 0.98:
+        return False
+
+    if face_bbox is not None:
+        x, y, w, h = face_bbox
+        h_img, w_img = mask.shape[:2]
+        cx0 = max(0, x + int(w * 0.2))
+        cy0 = max(0, y + int(h * 0.2))
+        cx1 = min(w_img, x + int(w * 0.8))
+        cy1 = min(h_img, y + int(h * 0.8))
+        face_region = mask[cy0:cy1, cx0:cx1]
+        if face_region.size > 0 and float(np.mean(face_region > 0)) < 0.7:
+            return False
+
+    return True
+
+
+def _selfie_segmentation_mask(
+    image_bgr: np.ndarray,
+    threshold: float,
+    face_bbox: Optional[Tuple[int, int, int, int]],
+    bg_tolerance: float,
+    face_protect: float,
+) -> Optional[np.ndarray]:
+    segmenter = _get_selfie_segmenter()
+    if segmenter is None:
+        return None
+
+    image_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
+    result = segmenter.process(image_rgb)
+    if result.segmentation_mask is None:
+        return None
+
+    mask = result.segmentation_mask
+    mask = cv2.GaussianBlur(mask, (7, 7), 0)
+    mask = (mask > threshold).astype(np.uint8) * 255
+    mask = cv2.morphologyEx(
+        mask,
+        cv2.MORPH_CLOSE,
+        cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5)),
+        iterations=1,
+    )
+    mask = cv2.medianBlur(mask, 5)
+
+    shadow_bg = _border_connected_light_background_mask(image_bgr, bg_tolerance=bg_tolerance)
+    if shadow_bg is not None:
+        mask = cv2.bitwise_and(mask, cv2.bitwise_not(shadow_bg))
+        if face_bbox is not None:
+            x, y, w, h = face_bbox
+            cx = x + w // 2
+            cy = y + h // 2
+            axes = (int(w * face_protect), int(h * (face_protect + 0.15)))
+            face_core = np.zeros_like(mask)
+            cv2.ellipse(face_core, (cx, cy), axes, 0, 0, 360, 255, -1)
+            mask = cv2.bitwise_or(mask, face_core)
+
+    if not _mask_is_usable(mask, face_bbox):
+        return None
+    return mask
 
 
 def get_foreground_mask(
@@ -279,6 +552,10 @@ def get_foreground_mask(
     face_protect: float = 0.4,
 ) -> np.ndarray:
     """Return a foreground mask (uint8 0/255) using the most reliable method available."""
+    selfie_mask = _selfie_segmentation_mask(image_bgr, threshold, face_bbox, bg_tolerance, face_protect)
+    if selfie_mask is not None:
+        return selfie_mask
+
     border_key = _border_color_key_mask(image_bgr, bg_tolerance=bg_tolerance)
     if border_key is not None:
         return border_key
@@ -288,22 +565,6 @@ def get_foreground_mask(
         return white_key
     if prefer_white_key:
         return _white_bg_heuristic(image_bgr, bg_tolerance=bg_tolerance)
-
-    segmenter = _get_selfie_segmenter()
-    if segmenter is not None:
-        image_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
-        result = segmenter.process(image_rgb)
-        if result.segmentation_mask is not None:
-            mask = result.segmentation_mask
-            # Smooth edges for cleaner composites
-            mask = cv2.GaussianBlur(mask, (7, 7), 0)
-            mask = (mask > threshold).astype(np.uint8) * 255
-            mask = cv2.medianBlur(mask, 5)
-
-            # If mask is almost all foreground or background, treat as failure.
-            fg_ratio = float(np.mean(mask > 0))
-            if 0.02 < fg_ratio < 0.98:
-                return mask
 
     if face_bbox is not None:
         try:
@@ -361,6 +622,37 @@ def get_foreground_mask(
     return _foreground_mask_hsv(image_bgr)
 
 
+def get_foreground_alpha(
+    image_bgr: np.ndarray,
+    threshold: float = 0.5,
+    face_bbox: Optional[Tuple[int, int, int, int]] = None,
+    bbox_expand_x: float = 0.4,
+    bbox_expand_y: float = 0.6,
+    prefer_white_key: bool = False,
+    bg_tolerance: float = 25.0,
+    face_protect: float = 0.4,
+) -> np.ndarray:
+    """Return a soft alpha foreground mask, preferring BiRefNet/rembg when available."""
+    alpha = _birefnet_alpha_mask(image_bgr, face_bbox=face_bbox)
+    if alpha is not None:
+        return alpha
+
+    alpha = _rembg_alpha_mask(image_bgr, face_bbox=face_bbox)
+    if alpha is not None:
+        return alpha
+
+    return get_foreground_mask(
+        image_bgr,
+        threshold=threshold,
+        face_bbox=face_bbox,
+        bbox_expand_x=bbox_expand_x,
+        bbox_expand_y=bbox_expand_y,
+        prefer_white_key=prefer_white_key,
+        bg_tolerance=bg_tolerance,
+        face_protect=face_protect,
+    )
+
+
 def replace_background(
     image_bgr: np.ndarray,
     background_rgb: Tuple[int, int, int],
@@ -372,6 +664,22 @@ def replace_background(
     face_protect: float = 0.4,
 ) -> np.ndarray:
     """Replace background using the best available foreground mask."""
+    birefnet_alpha = _birefnet_alpha_mask(image_bgr, face_bbox=face_bbox)
+    if birefnet_alpha is not None:
+        background = np.full_like(image_bgr, background_rgb[::-1])
+        alpha = birefnet_alpha.astype(np.float32) / 255.0
+        alpha = alpha[:, :, None]
+        composite = image_bgr.astype(np.float32) * alpha + background.astype(np.float32) * (1.0 - alpha)
+        return composite.astype(np.uint8)
+
+    rembg_alpha = _rembg_alpha_mask(image_bgr, face_bbox=face_bbox)
+    if rembg_alpha is not None:
+        background = np.full_like(image_bgr, background_rgb[::-1])
+        alpha = rembg_alpha.astype(np.float32) / 255.0
+        alpha = alpha[:, :, None]
+        composite = image_bgr.astype(np.float32) * alpha + background.astype(np.float32) * (1.0 - alpha)
+        return composite.astype(np.uint8)
+
     fg_mask = get_foreground_mask(
         image_bgr,
         threshold=threshold,
@@ -387,6 +695,10 @@ def replace_background(
         white_key = _white_key_mask(image_bgr, bg_tolerance=bg_tolerance)
         if white_key is not None:
             fg_mask = white_key
+
+    shadow_bg = _border_connected_light_background_mask(image_bgr, bg_tolerance=bg_tolerance)
+    if shadow_bg is not None:
+        fg_mask = cv2.bitwise_and(fg_mask, cv2.bitwise_not(shadow_bg))
 
     # Hard-protect only the core face ellipse to avoid erosion without swallowing background.
     if face_bbox is not None:
@@ -672,8 +984,6 @@ def main() -> None:
 
     bbox, eye_point = detect_face(image_bgr)
 
-    if args.replace_bg:
-        image_bgr = replace_background(image_bgr, spec.background_rgb, face_bbox=bbox)
     cropped_bgr = crop_to_spec(
         image_bgr,
         bbox,
@@ -682,6 +992,12 @@ def main() -> None:
         args.dpi,
         background_rgb=spec.background_rgb,
     )
+    if args.replace_bg:
+        try:
+            cropped_bbox, _ = detect_face(cropped_bgr)
+        except Exception:
+            cropped_bbox = None
+        cropped_bgr = replace_background(cropped_bgr, spec.background_rgb, face_bbox=cropped_bbox)
 
     output_dir = args.output_dir
     output_dir.mkdir(parents=True, exist_ok=True)

@@ -14,7 +14,7 @@ from process_photo import (
     detect_face,
     crop_to_spec,
     replace_background,
-    get_foreground_mask,
+    get_foreground_alpha,
     build_print_sheet,
     LayoutSpec,
     parse_layout,
@@ -265,7 +265,7 @@ with st.sidebar:
     
     # Photo settings
     st.markdown("### 📷 Photo Settings")
-    replace_bg = st.checkbox("🧽 Remove/Replace Background", value=False, help="Remove the background and fill with a solid color")
+    replace_bg = st.checkbox("🧽 Remove/Replace Background", value=True, help="Remove the background and fill with a solid color")
     background_color_options = {
         "Use spec default": None,
         "Transparent (PNG)": "transparent",
@@ -308,7 +308,7 @@ with st.sidebar:
         "Background tolerance",
         min_value=int(tol_min),
         max_value=int(tol_max),
-        value=int(min(max(25, tol_min), tol_max)),
+        value=int(min(max(45, tol_min), tol_max)),
         step=1,
         help="Higher values remove more background (may eat into the subject).",
         disabled=not replace_bg,
@@ -428,22 +428,10 @@ if uploaded_file:
                 # Detect face
                 bbox, eye_point = detect_face(image_bgr)
 
-                # Replace background if selected
-                if replace_bg and not transparent_bg:
-                    image_bgr = replace_background(
-                        image_bgr,
-                        background_rgb,
-                        face_bbox=bbox,
-                        bbox_expand_x=0.4,
-                        bbox_expand_y=0.6,
-                        bg_tolerance=float(bg_tolerance),
-                        face_protect=float(face_protect),
-                    )
-                
                 # Crop to spec
                 cropped_bgr = crop_to_spec(image_bgr, bbox, eye_point, specs[country], dpi, background_rgb=pad_rgb)
 
-                # If background replacement is enabled, re-apply on the cropped image so the result is visible
+                # Replace after cropping so the cutout edge is generated at final resolution.
                 if replace_bg and not transparent_bg:
                     try:
                         bbox_cropped, _ = detect_face(cropped_bgr)
@@ -465,7 +453,7 @@ if uploaded_file:
                         dbg_col1, dbg_col2 = st.columns(2)
                         with dbg_col1:
                             try:
-                                mask_orig = get_foreground_mask(
+                                mask_orig = get_foreground_alpha(
                                     image_bgr,
                                     face_bbox=bbox,
                                     bbox_expand_x=0.4,
@@ -485,7 +473,7 @@ if uploaded_file:
                             except Exception:
                                 bbox_dbg = None
                             try:
-                                mask_crop = get_foreground_mask(
+                                mask_crop = get_foreground_alpha(
                                     cropped_bgr,
                                     face_bbox=bbox_dbg,
                                     bbox_expand_x=0.2,
@@ -986,50 +974,15 @@ if uploaded_file:
                         bbox_cropped, _ = detect_face(cropped_bgr)
                     except Exception:
                         bbox_cropped = None
-                    fg_mask = get_foreground_mask(
+                    fg_mask = get_foreground_alpha(
                         cropped_bgr,
                         face_bbox=bbox_cropped,
                         bbox_expand_x=0.2,
                         bbox_expand_y=0.3,
                         prefer_white_key=False,
                         bg_tolerance=float(bg_tolerance),
+                        face_protect=float(face_protect),
                     )
-                    # Be conservative for transparency: grow the foreground a bit and soften edges.
-                    fg_mask = cv2.dilate(
-                        fg_mask,
-                        cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7)),
-                        iterations=2,
-                    )
-                    fg_mask = cv2.morphologyEx(
-                        fg_mask,
-                        cv2.MORPH_CLOSE,
-                        cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (9, 9)),
-                        iterations=2,
-                    )
-                    # Fill small holes inside the foreground mask.
-                    inv = cv2.bitwise_not(fg_mask)
-                    h_m, w_m = inv.shape[:2]
-                    flood = inv.copy()
-                    mask = np.zeros((h_m + 2, w_m + 2), np.uint8)
-                    cv2.floodFill(flood, mask, (0, 0), 255)
-                    holes = cv2.bitwise_not(flood)
-                    fg_mask = cv2.bitwise_or(fg_mask, holes)
-                    fg_mask = cv2.GaussianBlur(fg_mask, (5, 5), 0)
-
-                    # Final hard-protect: keep only the core face ellipse to prevent erosion.
-                    if bbox_cropped is not None:
-                        x, y, w, h = bbox_cropped
-                        # Also force an ellipse over the core face area.
-                        cx = x + w // 2
-                        cy = y + h // 2
-                        axes = (int(w * face_protect), int(h * (face_protect + 0.15)))
-                        face_core = np.zeros_like(fg_mask)
-                        cv2.ellipse(face_core, (cx, cy), axes, 0, 0, 360, 255, -1)
-                        fg_mask = cv2.bitwise_or(fg_mask, face_core)
-                    if float(np.mean(fg_mask > 0)) > 0.98:
-                        b, g, r = cv2.split(cropped_bgr)
-                        white_mask = (b > 235) & (g > 235) & (r > 235)
-                        fg_mask = (~white_mask).astype(np.uint8) * 255
                     rgba = cv2.cvtColor(cropped_bgr, cv2.COLOR_BGR2RGBA)
                     rgba[:, :, 3] = fg_mask
                     cropped_pil = Image.fromarray(rgba)
