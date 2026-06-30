@@ -72,6 +72,73 @@ def _max_copies_for_layout(
 
     return max(total_photos_orig, total_photos_rot)
 
+
+def _clamp_crop_rect(
+    left: float,
+    top: float,
+    width: float,
+    height: float,
+    image_w: int,
+    image_h: int,
+) -> tuple[int, int, int, int]:
+    width = min(width, image_w)
+    height = min(height, image_h)
+    left = min(max(left, 0), image_w - width)
+    top = min(max(top, 0), image_h - height)
+    return (
+        int(round(left)),
+        int(round(top)),
+        int(round(left + width)),
+        int(round(top + height)),
+    )
+
+
+def _default_manual_crop_rect(
+    image_shape: tuple[int, int, int],
+    face_bbox: tuple[int, int, int, int],
+    eye_point: tuple[int, int],
+    spec,
+) -> tuple[int, int, int, int]:
+    image_h, image_w = image_shape[:2]
+    face_x, face_y, face_w, face_h = [int(v) for v in face_bbox]
+    eye_x, eye_y = [int(v) for v in eye_point]
+    target_aspect = spec.width_in / spec.height_in
+
+    crop_h = max(1.0, (face_h * 1.15) / max(spec.head_height_ratio, 0.01))
+    crop_w = crop_h * target_aspect
+    if crop_w > image_w:
+        crop_w = float(image_w)
+        crop_h = crop_w / target_aspect
+    if crop_h > image_h:
+        crop_h = float(image_h)
+        crop_w = crop_h * target_aspect
+
+    left = eye_x - crop_w / 2
+    top = eye_y - crop_h * (1 - spec.eye_line_from_bottom_ratio)
+
+    estimated_head_top = face_y - face_h * 0.15
+    min_headroom_top = estimated_head_top - crop_h * spec.top_margin_ratio
+    top = min(top, min_headroom_top)
+
+    return _clamp_crop_rect(left, top, crop_w, crop_h, image_w, image_h)
+
+
+def _draw_horizontal_guide(
+    image: np.ndarray,
+    x1: int,
+    x2: int,
+    y: int,
+    label: str,
+    color: tuple[int, int, int],
+    tolerance_px: int = 0,
+) -> None:
+    if tolerance_px > 0:
+        cv2.line(image, (x1, y - tolerance_px), (x2, y - tolerance_px), color, 1)
+        cv2.line(image, (x1, y + tolerance_px), (x2, y + tolerance_px), color, 1)
+    cv2.line(image, (x1, y), (x2, y), color, 2)
+    cv2.putText(image, label, (x1 + 6, max(14, y - 8)), cv2.FONT_HERSHEY_SIMPLEX, 0.45, color, 1)
+
+
 # Configure page
 st.set_page_config(
     page_title="ID Photo Processor",
@@ -574,43 +641,8 @@ if uploaded_file:
                 st.markdown("### 🎯 Manual Crop Controls")
                 st.markdown("*Use the buttons below to resize and move the crop frame.*")
                 
-                # Compute defaults optimized for target photo format
-                h, w = image_bgr.shape[:2]
-                image_aspect_ratio = w / h
-                
                 # Get target photo specifications
                 spec = specs[country]
-                target_aspect_ratio = spec.width_in / spec.height_in
-                target_eye_pos = spec.eye_line_from_bottom_ratio
-                target_head_fill = spec.head_height_ratio
-                
-                # Calculate default crop frame optimized for the target format
-                try:
-                    # Center the crop frame in the image
-                    center_y_pct = 50
-                    center_x_pct = 50
-                    
-                    # Calculate frame height based on target head fill ratio
-                    # Frame should accommodate head at the specified position
-                    frame_height_pct = target_head_fill * 100 / 0.7  # Add padding above/below head
-                    frame_height_pct = min(80, frame_height_pct)  # Cap at 80% of image
-                    
-                    # Calculate frame width to match target aspect ratio
-                    frame_width_pct = frame_height_pct * target_aspect_ratio
-                    frame_width_pct = min(80, frame_width_pct)  # Cap at 80% of image
-                    
-                    # Position vertically so eyes are at the target position
-                    default_top = max(5, int(center_y_pct - frame_height_pct * (1 - target_eye_pos)))
-                    default_bottom = min(95, int(center_y_pct + frame_height_pct * target_eye_pos))
-                    
-                    # Position horizontally centered
-                    default_left = max(10, int(center_x_pct - frame_width_pct / 2))
-                    default_right = min(90, int(center_x_pct + frame_width_pct / 2))
-                    
-                except:
-                    # Fallback defaults
-                    default_top, default_bottom = 20, 80
-                    default_left, default_right = 20, 80
                 
                 # Use original image without zoom
                 image_zoomed = image_bgr.copy()
@@ -680,49 +712,37 @@ if uploaded_file:
                 move_offset_x = getattr(st.session_state, 'move_offset_x', 0)
                 move_offset_y = getattr(st.session_state, 'move_offset_y', 0)
                 
-                # Use default crop boundaries based on spec
+                # Start manual adjustment from the detected face/eyes and selected spec.
                 spec = specs[country]
-                crop_top_pct = max(5, int((1 - spec.eye_line_from_bottom_ratio - spec.head_height_ratio/2) * 100))
-                crop_bottom_pct = min(95, int((1 - spec.eye_line_from_bottom_ratio + spec.head_height_ratio/2) * 100))
-                crop_left_pct = 15
-                crop_right_pct = 85
-                
-                # Calculate scaled crop boundaries
-                # Center the crop area and scale it
-                center_y = (crop_top_pct + crop_bottom_pct) / 2
-                center_x = (crop_left_pct + crop_right_pct) / 2
-                
-                height_range = crop_bottom_pct - crop_top_pct
-                width_range = crop_right_pct - crop_left_pct
-                
-                # Apply scale factor and lock to target aspect ratio
-                scaled_height = height_range * scale_factor
+                base_x1, base_y1, base_x2, base_y2 = _default_manual_crop_rect(
+                    image_zoomed.shape,
+                    bbox,
+                    eye_point,
+                    spec,
+                )
+                base_w = max(1, base_x2 - base_x1)
+                base_h = max(1, base_y2 - base_y1)
                 target_aspect = spec.width_in / spec.height_in
-                scaled_width = scaled_height * target_aspect * (h_zoom / w_zoom)
-                if scaled_width > 100:
-                    scaled_width = 100
-                    scaled_height = scaled_width / (target_aspect * (h_zoom / w_zoom))
-                if scaled_height > 100:
-                    scaled_height = 100
-                    scaled_width = scaled_height * target_aspect * (h_zoom / w_zoom)
-                
-                # Apply movement offset to center (clamped to keep frame inside bounds)
-                half_h = scaled_height / 2
-                half_w = scaled_width / 2
-                center_y_moved = min(max(center_y + move_offset_y, half_h), 100 - half_h)
-                center_x_moved = min(max(center_x + move_offset_x, half_w), 100 - half_w)
-                
-                # Keep within bounds with correct aspect ratio
-                crop_top_pct_scaled = center_y_moved - half_h
-                crop_bottom_pct_scaled = center_y_moved + half_h
-                crop_left_pct_scaled = center_x_moved - half_w
-                crop_right_pct_scaled = center_x_moved + half_w
-                
-                # Apply manual crop on zoomed image with scaled and moved boundaries
-                y1 = int(h_zoom * crop_top_pct_scaled / 100)
-                y2 = int(h_zoom * crop_bottom_pct_scaled / 100)
-                x1 = int(w_zoom * crop_left_pct_scaled / 100)
-                x2 = int(w_zoom * crop_right_pct_scaled / 100)
+                center_x = (base_x1 + base_x2) / 2 + (move_offset_x / 100) * w_zoom
+                center_y = (base_y1 + base_y2) / 2 + (move_offset_y / 100) * h_zoom
+
+                scaled_h = base_h * scale_factor
+                scaled_w = scaled_h * target_aspect
+                if scaled_w > w_zoom:
+                    scaled_w = float(w_zoom)
+                    scaled_h = scaled_w / target_aspect
+                if scaled_h > h_zoom:
+                    scaled_h = float(h_zoom)
+                    scaled_w = scaled_h * target_aspect
+
+                x1, y1, x2, y2 = _clamp_crop_rect(
+                    center_x - scaled_w / 2,
+                    center_y - scaled_h / 2,
+                    scaled_w,
+                    scaled_h,
+                    w_zoom,
+                    h_zoom,
+                )
                 
                 manual_cropped_bgr = image_zoomed[y1:y2, x1:x2]
                 
@@ -766,24 +786,32 @@ if uploaded_file:
                 # Update cropped_bgr to use manual adjustment
                 cropped_bgr = manual_cropped_bgr
                 
-                # Validate feature positioning with tolerance
-                crop_h = y2 - y1
+                # Validate estimated feature positioning against spec-driven targets.
+                crop_h = max(1, y2 - y1)
+                crop_w = max(1, x2 - x1)
+                face_x, face_y, face_w, face_h = [int(v) for v in bbox]
+                eye_x, eye_y = [int(v) for v in eye_point]
+                estimated_head_top = face_y - int(face_h * 0.15)
+                estimated_head_bottom = face_y + face_h
+                estimated_head_center_x = face_x + face_w / 2
                 
-                # Check if key features are within acceptable bounds
-                eye_line_y = y1 + int(crop_h * (1 - spec.eye_line_from_bottom_ratio))
-                forehead_y = y1 + int(crop_h * 0.1)
-                shoulders_y = y2 - int(crop_h * 0.15)
-                head_top_y = y1 + int(crop_h * 0.05)
+                # Compare estimated feature positions with the target guide ratios.
+                target_head_top_ratio = spec.top_margin_ratio
+                target_eye_ratio = 1 - spec.eye_line_from_bottom_ratio
+                target_head_height_ratio = spec.head_height_ratio
+                actual_head_top_ratio = (estimated_head_top - y1) / crop_h
+                actual_eye_ratio = (eye_y - y1) / crop_h
+                actual_head_height_ratio = (estimated_head_bottom - estimated_head_top) / crop_h
+                actual_center_offset_ratio = abs(estimated_head_center_x - ((x1 + x2) / 2)) / crop_w
                 
-                # Tolerance ranges (±15% of crop area)
-                eye_in_frame = y1 < eye_line_y < y2
-                forehead_in_frame = y1 - int(crop_h * tolerance) <= forehead_y <= y1 + int(crop_h * tolerance)
-                shoulders_in_frame = y2 - int(crop_h * tolerance) <= shoulders_y <= y2 + int(crop_h * tolerance)
-                head_top_in_frame = y1 - int(crop_h * tolerance) <= head_top_y <= y1 + int(crop_h * tolerance)
-                center_aligned = abs(x2 - x1 - crop_w) < int(crop_w * tolerance)
+                # These tolerances account for face-detector variance while keeping the guides meaningful.
+                head_top_valid = abs(actual_head_top_ratio - target_head_top_ratio) <= 0.06
+                eye_valid = abs(actual_eye_ratio - target_eye_ratio) <= 0.05
+                head_size_valid = abs(actual_head_height_ratio - target_head_height_ratio) <= 0.10
+                center_aligned = actual_center_offset_ratio <= 0.08
                 
                 # Overall validation
-                features_valid = all([eye_in_frame, forehead_in_frame, shoulders_in_frame, head_top_in_frame, center_aligned])
+                features_valid = all([head_top_valid, eye_valid, head_size_valid, center_aligned])
                 
                 # Show live preview (optional overlay)
                 st.markdown("### 📸 Live Preview")
@@ -802,34 +830,19 @@ if uploaded_file:
                         # Add guide lines for correct positioning
                         crop_h = y2 - y1
                         crop_w = x2 - x1
-                        tolerance_px = int(crop_h * tolerance)
+                        tolerance_px = max(2, int(crop_h * 0.025))
                         
                         # Top of head guide
-                        head_top_y = y1 + int(crop_h * 0.05)
-                        head_top_zone_top = max(y1, head_top_y - tolerance_px)
-                        head_top_zone_bottom = head_top_y + tolerance_px
-                        cv2.line(img_display, (x1, head_top_zone_top), (x2, head_top_zone_top), (170, 170, 170), 1)
-                        cv2.line(img_display, (x1, head_top_y), (x2, head_top_y), (150, 150, 150), 1)
-                        cv2.line(img_display, (x1, head_top_zone_bottom), (x2, head_top_zone_bottom), (170, 170, 170), 1)
-                        cv2.putText(img_display, "Head Top", (x1 + 5, head_top_y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (150, 150, 150), 1)
+                        head_top_y = y1 + int(crop_h * spec.top_margin_ratio)
+                        _draw_horizontal_guide(img_display, x1, x2, head_top_y, "Head top", (60, 170, 60), tolerance_px)
                         
                         # Eye line tolerance zone
                         eye_line_y = y1 + int(crop_h * (1 - specs[country].eye_line_from_bottom_ratio))
-                        eye_top = eye_line_y - tolerance_px
-                        eye_bottom = eye_line_y + tolerance_px
-                        cv2.line(img_display, (x1, eye_top), (x2, eye_top), (180, 180, 180), 1)
-                        cv2.line(img_display, (x1, eye_line_y), (x2, eye_line_y), (160, 160, 160), 1)
-                        cv2.line(img_display, (x1, eye_bottom), (x2, eye_bottom), (180, 180, 180), 1)
-                        cv2.putText(img_display, "Eyes", (x1 + 5, eye_line_y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (160, 160, 160), 1)
+                        _draw_horizontal_guide(img_display, x1, x2, eye_line_y, "Eyes", (200, 120, 40), tolerance_px)
                         
-                        # Shoulders / mid-chest guide (bottom)
-                        shoulders_y = y2 - int(crop_h * 0.15)
-                        shoulders_top = shoulders_y - tolerance_px
-                        shoulders_bottom = min(y2, shoulders_y + tolerance_px)
-                        cv2.line(img_display, (x1, shoulders_top), (x2, shoulders_top), (170, 170, 170), 1)
-                        cv2.line(img_display, (x1, shoulders_y), (x2, shoulders_y), (150, 150, 150), 1)
-                        cv2.line(img_display, (x1, shoulders_bottom), (x2, shoulders_bottom), (170, 170, 170), 1)
-                        cv2.putText(img_display, "Shoulders", (x1 + 5, shoulders_y + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (150, 150, 150), 1)
+                        # Head-size guide
+                        head_bottom_y = y1 + int(crop_h * min(0.95, spec.top_margin_ratio + spec.head_height_ratio))
+                        _draw_horizontal_guide(img_display, x1, x2, head_bottom_y, "Chin / head bottom", (120, 120, 220), tolerance_px)
                         
                         # Add center vertical line
                         center_x_line = (x1 + x2) // 2
@@ -858,32 +871,27 @@ if uploaded_file:
                     st.markdown("#### ✓ Feature Position Validation")
                     val_col1, val_col2, val_col3 = st.columns(3)
                     with val_col1:
-                        if forehead_in_frame:
-                            st.success("✓ Forehead", icon="✅")
+                        if head_top_valid:
+                            st.success("Head top", icon="✅")
                         else:
-                            st.warning("✗ Forehead", icon="⚠️")
+                            st.warning("Head top", icon="⚠️")
                     with val_col2:
-                        if eye_in_frame:
+                        if eye_valid:
                             st.success("✓ Eyes", icon="✅")
                         else:
                             st.warning("✗ Eyes", icon="⚠️")
                     with val_col3:
-                        if head_top_in_frame:
-                            st.success("✓ Head Top", icon="✅")
+                        if head_size_valid:
+                            st.success("Head size", icon="✅")
                         else:
-                            st.warning("✗ Head Top", icon="⚠️")
+                            st.warning("Head size", icon="⚠️")
                     
-                    val_col4, val_col5 = st.columns(2)
+                    val_col4, _ = st.columns(2)
                     with val_col4:
-                        if shoulders_in_frame:
-                            st.success("✓ Shoulders", icon="✅")
-                        else:
-                            st.warning("✗ Shoulders", icon="⚠️")
-                    with val_col5:
                         if center_aligned:
-                            st.success("✓ Centered", icon="✅")
+                            st.success("Centered", icon="✅")
                         else:
-                            st.warning("✗ Centered", icon="⚠️")
+                            st.warning("Centered", icon="⚠️")
                     
                     # Overall validation status
                     if features_valid:
@@ -898,34 +906,19 @@ if uploaded_file:
                         # Add guide lines to final photo as well (Head Top / Eyes / Shoulders)
                         final_display = final_photo_display.copy()
                         final_h, final_w = final_display.shape[:2]
-                        tolerance_px_final = int(final_h * tolerance)
+                        tolerance_px_final = max(2, int(final_h * 0.025))
                         
                         # Top of head guide
-                        head_top_final = int(final_h * 0.05)
-                        head_top_zone_top = max(0, head_top_final - tolerance_px_final)
-                        head_top_zone_bottom = head_top_final + tolerance_px_final
-                        cv2.line(final_display, (0, head_top_zone_top), (final_w, head_top_zone_top), (170, 170, 170), 1)
-                        cv2.line(final_display, (0, head_top_final), (final_w, head_top_final), (150, 150, 150), 1)
-                        cv2.line(final_display, (0, head_top_zone_bottom), (final_w, head_top_zone_bottom), (170, 170, 170), 1)
-                        cv2.putText(final_display, "Head Top", (5, head_top_final - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (150, 150, 150), 1)
+                        head_top_final = int(final_h * spec.top_margin_ratio)
+                        _draw_horizontal_guide(final_display, 0, final_w, head_top_final, "Head top", (60, 170, 60), tolerance_px_final)
                         
                         # Eye line tolerance zone
                         eye_line_final = int(final_h * (1 - specs[country].eye_line_from_bottom_ratio))
-                        eye_top_final = eye_line_final - tolerance_px_final
-                        eye_bottom_final = eye_line_final + tolerance_px_final
-                        cv2.line(final_display, (0, eye_top_final), (final_w, eye_top_final), (180, 180, 180), 1)
-                        cv2.line(final_display, (0, eye_line_final), (final_w, eye_line_final), (160, 160, 160), 1)
-                        cv2.line(final_display, (0, eye_bottom_final), (final_w, eye_bottom_final), (180, 180, 180), 1)
-                        cv2.putText(final_display, "Eyes", (5, eye_line_final - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (160, 160, 160), 1)
+                        _draw_horizontal_guide(final_display, 0, final_w, eye_line_final, "Eyes", (200, 120, 40), tolerance_px_final)
                         
-                        # Shoulders / mid-chest guide (bottom)
-                        shoulders_final = int(final_h * 0.85)
-                        shoulders_top_final = shoulders_final - tolerance_px_final
-                        shoulders_bottom_final = min(final_h, shoulders_final + tolerance_px_final)
-                        cv2.line(final_display, (0, shoulders_top_final), (final_w, shoulders_top_final), (170, 170, 170), 1)
-                        cv2.line(final_display, (0, shoulders_final), (final_w, shoulders_final), (150, 150, 150), 1)
-                        cv2.line(final_display, (0, shoulders_bottom_final), (final_w, shoulders_bottom_final), (170, 170, 170), 1)
-                        cv2.putText(final_display, "Shoulders", (5, shoulders_final + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (150, 150, 150), 1)
+                        # Head-size guide
+                        head_bottom_final = int(final_h * min(0.95, spec.top_margin_ratio + spec.head_height_ratio))
+                        _draw_horizontal_guide(final_display, 0, final_w, head_bottom_final, "Chin / head bottom", (120, 120, 220), tolerance_px_final)
                         
                         st.image(Image.fromarray(final_display), 
                                 caption="Final ID Photo with Guides",
