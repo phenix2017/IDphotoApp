@@ -8,11 +8,17 @@ from pathlib import Path
 from PIL import Image
 import io
 import tempfile
+import os
+from contextlib import contextmanager
 
 from process_photo import (
     load_specs,
     detect_face,
     crop_to_spec,
+    default_manual_crop_rect,
+    clamp_crop_rect,
+    manual_crop_metrics,
+    manual_crop_suggestions,
     replace_background,
     get_foreground_alpha,
     build_print_sheet,
@@ -73,56 +79,6 @@ def _max_copies_for_layout(
     return max(total_photos_orig, total_photos_rot)
 
 
-def _clamp_crop_rect(
-    left: float,
-    top: float,
-    width: float,
-    height: float,
-    image_w: int,
-    image_h: int,
-) -> tuple[int, int, int, int]:
-    width = min(width, image_w)
-    height = min(height, image_h)
-    left = min(max(left, 0), image_w - width)
-    top = min(max(top, 0), image_h - height)
-    return (
-        int(round(left)),
-        int(round(top)),
-        int(round(left + width)),
-        int(round(top + height)),
-    )
-
-
-def _default_manual_crop_rect(
-    image_shape: tuple[int, int, int],
-    face_bbox: tuple[int, int, int, int],
-    eye_point: tuple[int, int],
-    spec,
-) -> tuple[int, int, int, int]:
-    image_h, image_w = image_shape[:2]
-    face_x, face_y, face_w, face_h = [int(v) for v in face_bbox]
-    eye_x, eye_y = [int(v) for v in eye_point]
-    target_aspect = spec.width_in / spec.height_in
-
-    crop_h = max(1.0, (face_h * 1.15) / max(spec.head_height_ratio, 0.01))
-    crop_w = crop_h * target_aspect
-    if crop_w > image_w:
-        crop_w = float(image_w)
-        crop_h = crop_w / target_aspect
-    if crop_h > image_h:
-        crop_h = float(image_h)
-        crop_w = crop_h * target_aspect
-
-    left = eye_x - crop_w / 2
-    top = eye_y - crop_h * (1 - spec.eye_line_from_bottom_ratio)
-
-    estimated_head_top = face_y - face_h * 0.15
-    min_headroom_top = estimated_head_top - crop_h * spec.top_margin_ratio
-    top = min(top, min_headroom_top)
-
-    return _clamp_crop_rect(left, top, crop_w, crop_h, image_w, image_h)
-
-
 def _draw_horizontal_guide(
     image: np.ndarray,
     x1: int,
@@ -137,6 +93,62 @@ def _draw_horizontal_guide(
         cv2.line(image, (x1, y + tolerance_px), (x2, y + tolerance_px), color, 1)
     cv2.line(image, (x1, y), (x2, y), color, 2)
     cv2.putText(image, label, (x1 + 6, max(14, y - 8)), cv2.FONT_HERSHEY_SIMPLEX, 0.45, color, 1)
+
+
+@contextmanager
+def _background_backend(engine: str):
+    old_disable_birefnet = os.environ.get("IDPHOTO_DISABLE_BIREFNET")
+    old_disable_rembg = os.environ.get("IDPHOTO_DISABLE_REMBG")
+    try:
+        if engine == "Best quality (BiRefNet)":
+            os.environ.pop("IDPHOTO_DISABLE_BIREFNET", None)
+            os.environ.pop("IDPHOTO_DISABLE_REMBG", None)
+        elif engine == "Fast local (rembg)":
+            os.environ["IDPHOTO_DISABLE_BIREFNET"] = "1"
+            os.environ.pop("IDPHOTO_DISABLE_REMBG", None)
+        else:
+            os.environ["IDPHOTO_DISABLE_BIREFNET"] = "1"
+            os.environ["IDPHOTO_DISABLE_REMBG"] = "1"
+        yield
+    finally:
+        if old_disable_birefnet is None:
+            os.environ.pop("IDPHOTO_DISABLE_BIREFNET", None)
+        else:
+            os.environ["IDPHOTO_DISABLE_BIREFNET"] = old_disable_birefnet
+        if old_disable_rembg is None:
+            os.environ.pop("IDPHOTO_DISABLE_REMBG", None)
+        else:
+            os.environ["IDPHOTO_DISABLE_REMBG"] = old_disable_rembg
+
+
+@st.cache_data(show_spinner=False, max_entries=16)
+def _cached_replace_background(
+    image_png: bytes,
+    background_rgb: tuple[int, int, int],
+    face_bbox: tuple[int, int, int, int] | None,
+    bg_tolerance: float,
+    face_protect: float,
+    engine: str,
+) -> np.ndarray:
+    data = np.frombuffer(image_png, dtype=np.uint8)
+    image_bgr = cv2.imdecode(data, cv2.IMREAD_COLOR)
+    with _background_backend(engine):
+        return replace_background(
+            image_bgr,
+            background_rgb,
+            face_bbox=face_bbox,
+            bbox_expand_x=0.2,
+            bbox_expand_y=0.3,
+            bg_tolerance=bg_tolerance,
+            face_protect=face_protect,
+        )
+
+
+def _encode_png_bytes(image_bgr: np.ndarray) -> bytes:
+    ok, encoded = cv2.imencode(".png", image_bgr)
+    if not ok:
+        raise RuntimeError("Could not encode image for background cache.")
+    return encoded.tobytes()
 
 
 # Configure page
@@ -330,114 +342,129 @@ with st.sidebar:
         label_visibility="collapsed"
     )
     
-    # Photo settings
-    st.markdown("### 📷 Photo Settings")
-    replace_bg = st.checkbox("🧽 Remove/Replace Background", value=True, help="Remove the background and fill with a solid color")
-    background_color_options = {
-        "Use spec default": None,
-        "Transparent (PNG)": "transparent",
-        "White": (255, 255, 255),
-        "Off-white": (245, 245, 245),
-        "Light gray": (230, 230, 230),
-        "Blue": (0, 120, 255),
-        "Light blue": (200, 220, 255),
-    }
-    background_color_choice = st.selectbox(
-        "Background color",
-        options=list(background_color_options.keys()),
+    picture_mode = st.radio(
+        "Picture mode",
+        ["Standard ID photo", "Difficult background / shadows", "Manual crop adjustment"],
         index=0,
-        help="Choose a common background color for the final photo",
-        disabled=not replace_bg,
+        help="Choose the closest situation. Most users only need this setting.",
     )
-    st.markdown("Background tolerance range")
-    tol_col1, tol_col2 = st.columns(2)
-    with tol_col1:
-        tol_min = st.number_input(
-            "Min",
-            min_value=1,
-            max_value=100,
-            value=5,
-            step=1,
-            disabled=not replace_bg,
-        )
-    with tol_col2:
-        tol_max = st.number_input(
-            "Max",
-            min_value=1,
-            max_value=100,
-            value=60,
-            step=1,
-            disabled=not replace_bg,
-        )
-    if tol_max <= tol_min:
-        tol_max = tol_min + 1
-    bg_tolerance = st.slider(
-        "Background tolerance",
-        min_value=int(tol_min),
-        max_value=int(tol_max),
-        value=int(min(max(45, tol_min), tol_max)),
-        step=1,
-        help="Higher values remove more background (may eat into the subject).",
-        disabled=not replace_bg,
-    )
-    face_protect = st.slider(
-        "Face protection size",
-        min_value=0.25,
-        max_value=0.6,
-        value=0.4,
-        step=0.05,
-        help="Lower values preserve less area around the face.",
-        disabled=not replace_bg,
-    )
-    dpi = st.slider("🎯 Quality (DPI)", min_value=100, max_value=600, value=300, step=50, help="Higher DPI = Better print quality")
-    
-    st.divider()
-    
-    # Layout settings
-    st.markdown("### 📄 Print Layout")
-    layout_preset = st.radio("Layout Size", ["4x6", "6x6", "Custom"], help="Select your print paper size")
-    
-    if layout_preset == "Custom":
-        col_custom1, col_custom2 = st.columns(2)
-        with col_custom1:
-            layout_w = st.number_input("Width (in)", value=4.0, min_value=1.0, step=0.5)
-        with col_custom2:
-            layout_h = st.number_input("Height (in)", value=6.0, min_value=1.0, step=0.5)
-        layout = LayoutSpec(width_in=layout_w, height_in=layout_h)
-    else:
-        layout = parse_layout(layout_preset)
-    
-    copies = None  # auto-calculated based on layout, photo size, margin, spacing
-    
-    st.markdown("#### Fine Tuning")
-    col_margin, col_spacing = st.columns(2)
-    with col_margin:
-        st.markdown("Margin (distance from edge)")
-        margin = st.number_input("Margin", value=0.02, min_value=0.0, step=0.01, label_visibility="collapsed", help="Distance from paper edges to photos: 0.02\" (very tight), 0.25\" (minimal), 0.5\" (standard)")
-    with col_spacing:
-        st.markdown("Spacing (between photos)")
-        spacing = st.number_input("Spacing", value=0.02, min_value=0.0, step=0.01, label_visibility="collapsed", help="Gap between photos on the sheet")
 
+    # Beginner defaults. The detailed controls below are available in Advanced Settings.
+    replace_bg_default = True
+    background_engine_default = "Best quality (BiRefNet)" if picture_mode == "Difficult background / shadows" else "Fast local (rembg)"
+    bg_tolerance_default = 45 if picture_mode == "Difficult background / shadows" else 35
+    show_guides_default = picture_mode == "Manual crop adjustment"
+
+    with st.expander("Advanced Settings", expanded=False):
+        # Photo settings
+        st.markdown("### 📷 Photo Settings")
+        replace_bg = st.checkbox("🧽 Remove/Replace Background", value=replace_bg_default, help="Remove the background and fill with a solid color")
+        background_engine = st.selectbox(
+            "Background engine",
+            ["Best quality (BiRefNet)", "Fast local (rembg)", "Classic fallback"],
+            index=["Best quality (BiRefNet)", "Fast local (rembg)", "Classic fallback"].index(background_engine_default),
+            help="Best quality is slower but cleaner. Fast local is quicker. Classic fallback avoids downloaded ML models.",
+            disabled=not replace_bg,
+        )
+        background_color_options = {
+            "Use spec default": None,
+            "Transparent (PNG)": "transparent",
+            "White": (255, 255, 255),
+            "Off-white": (245, 245, 245),
+            "Light gray": (230, 230, 230),
+            "Blue": (0, 120, 255),
+            "Light blue": (200, 220, 255),
+        }
+        background_color_choice = st.selectbox(
+            "Background color",
+            options=list(background_color_options.keys()),
+            index=0,
+            help="Choose a common background color for the final photo",
+            disabled=not replace_bg,
+        )
+        st.markdown("Background tolerance range")
+        tol_col1, tol_col2 = st.columns(2)
+        with tol_col1:
+            tol_min = st.number_input(
+                "Min",
+                min_value=1,
+                max_value=100,
+                value=5,
+                step=1,
+                disabled=not replace_bg,
+            )
+        with tol_col2:
+            tol_max = st.number_input(
+                "Max",
+                min_value=1,
+                max_value=100,
+                value=60,
+                step=1,
+                disabled=not replace_bg,
+            )
+        if tol_max <= tol_min:
+            tol_max = tol_min + 1
+        bg_tolerance = st.slider(
+            "Background tolerance",
+            min_value=int(tol_min),
+            max_value=int(tol_max),
+            value=int(min(max(bg_tolerance_default, tol_min), tol_max)),
+            step=1,
+            help="Higher values remove more background (may eat into the subject).",
+            disabled=not replace_bg,
+        )
+        face_protect = st.slider(
+            "Face protection size",
+            min_value=0.25,
+            max_value=0.6,
+            value=0.4,
+            step=0.05,
+            help="Lower values preserve less area around the face.",
+            disabled=not replace_bg,
+        )
+        dpi = st.slider("🎯 Quality (DPI)", min_value=100, max_value=600, value=300, step=50, help="Higher DPI = Better print quality")
+        
     st.divider()
-    st.markdown("### 🖼️ Display")
-    show_guides = st.checkbox(
-        "Show crop frames and guide lines",
-        value=True,
-        help="Toggle crop frames and guide lines on previews (enabled by default for manual mode).",
-    )
-    show_sheet_guides = st.checkbox("Show print sheet cut lines", value=False, help="Toggle cut lines, outlines, and corner marks on the print sheet")
-    show_mask_debug = st.checkbox(
-        "Show background mask preview",
-        value=False,
-        help="Preview the mask: white = kept (foreground), black = removed (background).",
-    )
     
-    st.divider()
-    st.markdown("""
-    <div style="text-align: center; color: #888; font-size: 0.85rem; padding: 1rem 0;">
-        <p>💡 <strong>Tip:</strong> Manual mode lets you fine-tune the crop area</p>
-    </div>
-    """, unsafe_allow_html=True)
+    with st.expander("Advanced Print and Display", expanded=False):
+        # Layout settings
+        st.markdown("### 📄 Print Layout")
+        layout_preset = st.radio("Layout Size", ["4x6", "6x6", "Custom"], help="Select your print paper size")
+        
+        if layout_preset == "Custom":
+            col_custom1, col_custom2 = st.columns(2)
+            with col_custom1:
+                layout_w = st.number_input("Width (in)", value=4.0, min_value=1.0, step=0.5)
+            with col_custom2:
+                layout_h = st.number_input("Height (in)", value=6.0, min_value=1.0, step=0.5)
+            layout = LayoutSpec(width_in=layout_w, height_in=layout_h)
+        else:
+            layout = parse_layout(layout_preset)
+        
+        copies = None  # auto-calculated based on layout, photo size, margin, spacing
+        
+        st.markdown("#### Fine Tuning")
+        col_margin, col_spacing = st.columns(2)
+        with col_margin:
+            st.markdown("Margin (distance from edge)")
+            margin = st.number_input("Margin", value=0.02, min_value=0.0, step=0.01, label_visibility="collapsed", help="Distance from paper edges to photos: 0.02\" (very tight), 0.25\" (minimal), 0.5\" (standard)")
+        with col_spacing:
+            st.markdown("Spacing (between photos)")
+            spacing = st.number_input("Spacing", value=0.02, min_value=0.0, step=0.01, label_visibility="collapsed", help="Gap between photos on the sheet")
+    
+        
+        st.markdown("### Display")
+        show_guides = st.checkbox(
+            "Show crop frames and guide lines",
+            value=show_guides_default,
+            help="Toggle crop frames and guide lines on previews (enabled by default for manual mode).",
+        )
+        show_sheet_guides = st.checkbox("Show very light print cut lines", value=True, help="Add nearly invisible cut lines, outlines, and corner marks on the print sheet")
+        show_mask_debug = st.checkbox(
+            "Show background mask preview",
+            value=False,
+            help="Preview the mask: white = kept (foreground), black = removed (background).",
+        )
 
 # Main content area
 st.markdown("---")
@@ -471,19 +498,21 @@ if uploaded_file:
         if image_bgr is None:
             st.error("❌ Could not read image. Please upload a valid image file.")
         else:
-            # Show processing mode selection
-            st.markdown("---")
-            st.markdown("### 🎯 Processing Mode")
-            
-            mode_col1, mode_col2 = st.columns(2)
-            with mode_col1:
-                if st.button("⚡ Automatic (AI Detection)", use_container_width=True, key="auto_mode_btn"):
-                    st.session_state.processing_mode = "Automatic"
-            with mode_col2:
-                if st.button("✏️ Manual (Fine-Tune)", use_container_width=True, key="manual_mode_btn"):
-                    st.session_state.processing_mode = "Manual Adjustment"
-            
-            processing_mode = st.session_state.get("processing_mode", "Automatic")
+            # Picture mode chooses the default; advanced users can override it.
+            default_processing_mode = "Manual Adjustment" if picture_mode == "Manual crop adjustment" else "Automatic"
+            if st.session_state.get("last_picture_mode") != picture_mode:
+                st.session_state.processing_mode = default_processing_mode
+                st.session_state.last_picture_mode = picture_mode
+            processing_mode = st.session_state.get("processing_mode", default_processing_mode)
+
+            with st.expander("Advanced processing override", expanded=False):
+                processing_mode = st.radio(
+                    "Processing mode",
+                    ["Automatic", "Manual Adjustment"],
+                    index=0 if processing_mode == "Automatic" else 1,
+                    help="Picture mode chooses this automatically. Override it only when needed.",
+                )
+                st.session_state.processing_mode = processing_mode
             
             with st.spinner("Processing..."):
                 transparent_bg = replace_bg and (background_color_choice == "Transparent (PNG)")
@@ -504,14 +533,13 @@ if uploaded_file:
                         bbox_cropped, _ = detect_face(cropped_bgr)
                     except Exception:
                         bbox_cropped = None
-                    cropped_bgr = replace_background(
-                        cropped_bgr,
-                        background_rgb,
-                        face_bbox=bbox_cropped,
-                        bbox_expand_x=0.2,
-                        bbox_expand_y=0.3,
-                        bg_tolerance=float(bg_tolerance),
-                        face_protect=float(face_protect),
+                    cropped_bgr = _cached_replace_background(
+                        _encode_png_bytes(cropped_bgr),
+                        tuple(background_rgb),
+                        tuple(int(v) for v in bbox_cropped) if bbox_cropped is not None else None,
+                        float(bg_tolerance),
+                        float(face_protect),
+                        background_engine,
                     )
                 
                 # Optional debug mask preview
@@ -520,14 +548,15 @@ if uploaded_file:
                         dbg_col1, dbg_col2 = st.columns(2)
                         with dbg_col1:
                             try:
-                                mask_orig = get_foreground_alpha(
-                                    image_bgr,
-                                    face_bbox=bbox,
-                                    bbox_expand_x=0.4,
-                                    bbox_expand_y=0.6,
-                                    bg_tolerance=float(bg_tolerance),
-                                    face_protect=float(face_protect),
-                                )
+                                with _background_backend(background_engine):
+                                    mask_orig = get_foreground_alpha(
+                                        image_bgr,
+                                        face_bbox=bbox,
+                                        bbox_expand_x=0.4,
+                                        bbox_expand_y=0.6,
+                                        bg_tolerance=float(bg_tolerance),
+                                        face_protect=float(face_protect),
+                                    )
                                 fg_ratio = float(np.mean(mask_orig > 0))
                                 mean, std = _border_stats(image_bgr)
                                 st.caption(f"Original mask fg: {fg_ratio:.2f} | border mean: {mean.astype(int)} | border std: {std.astype(int)} | white=kept")
@@ -540,14 +569,15 @@ if uploaded_file:
                             except Exception:
                                 bbox_dbg = None
                             try:
-                                mask_crop = get_foreground_alpha(
-                                    cropped_bgr,
-                                    face_bbox=bbox_dbg,
-                                    bbox_expand_x=0.2,
-                                    bbox_expand_y=0.3,
-                                    bg_tolerance=float(bg_tolerance),
-                                    face_protect=float(face_protect),
-                                )
+                                with _background_backend(background_engine):
+                                    mask_crop = get_foreground_alpha(
+                                        cropped_bgr,
+                                        face_bbox=bbox_dbg,
+                                        bbox_expand_x=0.2,
+                                        bbox_expand_y=0.3,
+                                        bg_tolerance=float(bg_tolerance),
+                                        face_protect=float(face_protect),
+                                    )
                                 fg_ratio = float(np.mean(mask_crop > 0))
                                 mean, std = _border_stats(cropped_bgr)
                                 st.caption(f"Cropped mask fg: {fg_ratio:.2f} | border mean: {mean.astype(int)} | border std: {std.astype(int)} | white=kept")
@@ -714,7 +744,7 @@ if uploaded_file:
                 
                 # Start manual adjustment from the detected face/eyes and selected spec.
                 spec = specs[country]
-                base_x1, base_y1, base_x2, base_y2 = _default_manual_crop_rect(
+                base_x1, base_y1, base_x2, base_y2 = default_manual_crop_rect(
                     image_zoomed.shape,
                     bbox,
                     eye_point,
@@ -735,7 +765,7 @@ if uploaded_file:
                     scaled_h = float(h_zoom)
                     scaled_w = scaled_h * target_aspect
 
-                x1, y1, x2, y2 = _clamp_crop_rect(
+                x1, y1, x2, y2 = clamp_crop_rect(
                     center_x - scaled_w / 2,
                     center_y - scaled_h / 2,
                     scaled_w,
@@ -789,26 +819,14 @@ if uploaded_file:
                 # Validate estimated feature positioning against spec-driven targets.
                 crop_h = max(1, y2 - y1)
                 crop_w = max(1, x2 - x1)
-                face_x, face_y, face_w, face_h = [int(v) for v in bbox]
-                eye_x, eye_y = [int(v) for v in eye_point]
-                estimated_head_top = face_y - int(face_h * 0.15)
-                estimated_head_bottom = face_y + face_h
-                estimated_head_center_x = face_x + face_w / 2
-                
-                # Compare estimated feature positions with the target guide ratios.
-                target_head_top_ratio = spec.top_margin_ratio
-                target_eye_ratio = 1 - spec.eye_line_from_bottom_ratio
-                target_head_height_ratio = spec.head_height_ratio
-                actual_head_top_ratio = (estimated_head_top - y1) / crop_h
-                actual_eye_ratio = (eye_y - y1) / crop_h
-                actual_head_height_ratio = (estimated_head_bottom - estimated_head_top) / crop_h
-                actual_center_offset_ratio = abs(estimated_head_center_x - ((x1 + x2) / 2)) / crop_w
+                metrics = manual_crop_metrics((x1, y1, x2, y2), bbox, eye_point, spec)
+                suggestions = manual_crop_suggestions(metrics)
                 
                 # These tolerances account for face-detector variance while keeping the guides meaningful.
-                head_top_valid = abs(actual_head_top_ratio - target_head_top_ratio) <= 0.06
-                eye_valid = abs(actual_eye_ratio - target_eye_ratio) <= 0.05
-                head_size_valid = abs(actual_head_height_ratio - target_head_height_ratio) <= 0.10
-                center_aligned = actual_center_offset_ratio <= 0.08
+                head_top_valid = abs(metrics["actual_head_top_ratio"] - metrics["target_head_top_ratio"]) <= 0.06
+                eye_valid = abs(metrics["actual_eye_ratio"] - metrics["target_eye_ratio"]) <= 0.05
+                head_size_valid = abs(metrics["actual_head_height_ratio"] - metrics["target_head_height_ratio"]) <= 0.10
+                center_aligned = metrics["actual_center_offset_ratio"] <= 0.08
                 
                 # Overall validation
                 features_valid = all([head_top_valid, eye_valid, head_size_valid, center_aligned])
@@ -898,6 +916,9 @@ if uploaded_file:
                         st.success("🎉 All features in correct position! Ready to save.", icon="✅")
                     else:
                         st.info("📍 Adjust the crop frame to position all features correctly", icon="ℹ️")
+                    st.markdown("#### Recommended adjustment")
+                    for suggestion in suggestions:
+                        st.write(f"- {suggestion}")
                 
                 with col_preview2:
                     # Display final photo (optional guide overlay)
@@ -967,15 +988,16 @@ if uploaded_file:
                         bbox_cropped, _ = detect_face(cropped_bgr)
                     except Exception:
                         bbox_cropped = None
-                    fg_mask = get_foreground_alpha(
-                        cropped_bgr,
-                        face_bbox=bbox_cropped,
-                        bbox_expand_x=0.2,
-                        bbox_expand_y=0.3,
-                        prefer_white_key=False,
-                        bg_tolerance=float(bg_tolerance),
-                        face_protect=float(face_protect),
-                    )
+                    with _background_backend(background_engine):
+                        fg_mask = get_foreground_alpha(
+                            cropped_bgr,
+                            face_bbox=bbox_cropped,
+                            bbox_expand_x=0.2,
+                            bbox_expand_y=0.3,
+                            prefer_white_key=False,
+                            bg_tolerance=float(bg_tolerance),
+                            face_protect=float(face_protect),
+                        )
                     rgba = cv2.cvtColor(cropped_bgr, cv2.COLOR_BGR2RGBA)
                     rgba[:, :, 3] = fg_mask
                     cropped_pil = Image.fromarray(rgba)

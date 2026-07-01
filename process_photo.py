@@ -298,6 +298,8 @@ def _birefnet_alpha_mask(
 
 
 def _get_rembg_session(model_name: Optional[str] = None):
+    if os.environ.get("IDPHOTO_DISABLE_REMBG") == "1":
+        return None
     if rembg_new_session is None:
         return None
 
@@ -724,6 +726,113 @@ def compute_output_size_px(spec: PhotoSpec, dpi: int) -> Tuple[int, int]:
     return int(round(spec.width_in * dpi)), int(round(spec.height_in * dpi))
 
 
+def clamp_crop_rect(
+    left: float,
+    top: float,
+    width: float,
+    height: float,
+    image_w: int,
+    image_h: int,
+) -> Tuple[int, int, int, int]:
+    """Clamp a crop rectangle to image bounds."""
+    width = min(width, image_w)
+    height = min(height, image_h)
+    left = min(max(left, 0), image_w - width)
+    top = min(max(top, 0), image_h - height)
+    return (
+        int(round(left)),
+        int(round(top)),
+        int(round(left + width)),
+        int(round(top + height)),
+    )
+
+
+def default_manual_crop_rect(
+    image_shape: Tuple[int, int, int],
+    face_bbox: Tuple[int, int, int, int],
+    eye_point: Tuple[int, int],
+    spec: PhotoSpec,
+) -> Tuple[int, int, int, int]:
+    """Return a spec-aware manual crop rectangle seeded from detected face/eyes."""
+    image_h, image_w = image_shape[:2]
+    _, face_y, face_w, face_h = [int(v) for v in face_bbox]
+    eye_x, eye_y = [int(v) for v in eye_point]
+    target_aspect = spec.width_in / spec.height_in
+
+    crop_h = max(1.0, (face_h * 1.15) / max(spec.head_height_ratio, 0.01))
+    crop_w = crop_h * target_aspect
+    if crop_w > image_w:
+        crop_w = float(image_w)
+        crop_h = crop_w / target_aspect
+    if crop_h > image_h:
+        crop_h = float(image_h)
+        crop_w = crop_h * target_aspect
+
+    left = eye_x - crop_w / 2
+    top = eye_y - crop_h * (1 - spec.eye_line_from_bottom_ratio)
+    estimated_head_top = face_y - face_h * 0.15
+    top = min(top, estimated_head_top - crop_h * spec.top_margin_ratio)
+
+    return clamp_crop_rect(left, top, crop_w, crop_h, image_w, image_h)
+
+
+def manual_crop_metrics(
+    crop_rect: Tuple[int, int, int, int],
+    face_bbox: Tuple[int, int, int, int],
+    eye_point: Tuple[int, int],
+    spec: PhotoSpec,
+) -> Dict[str, float]:
+    """Measure detected face placement relative to a manual crop and spec targets."""
+    x1, y1, x2, y2 = crop_rect
+    crop_h = max(1, y2 - y1)
+    crop_w = max(1, x2 - x1)
+    face_x, face_y, face_w, face_h = [int(v) for v in face_bbox]
+    eye_x, eye_y = [int(v) for v in eye_point]
+    estimated_head_top = face_y - int(face_h * 0.15)
+    estimated_head_bottom = face_y + face_h
+    estimated_head_center_x = face_x + face_w / 2
+
+    return {
+        "target_head_top_ratio": spec.top_margin_ratio,
+        "target_eye_ratio": 1 - spec.eye_line_from_bottom_ratio,
+        "target_head_height_ratio": spec.head_height_ratio,
+        "actual_head_top_ratio": (estimated_head_top - y1) / crop_h,
+        "actual_eye_ratio": (eye_y - y1) / crop_h,
+        "actual_head_height_ratio": (estimated_head_bottom - estimated_head_top) / crop_h,
+        "actual_center_offset_ratio": abs(estimated_head_center_x - ((x1 + x2) / 2)) / crop_w,
+    }
+
+
+def manual_crop_suggestions(metrics: Dict[str, float]) -> Tuple[str, ...]:
+    """Return concise user-facing crop adjustment suggestions."""
+    suggestions = []
+    head_top_delta = metrics["actual_head_top_ratio"] - metrics["target_head_top_ratio"]
+    eye_delta = metrics["actual_eye_ratio"] - metrics["target_eye_ratio"]
+    size_delta = metrics["actual_head_height_ratio"] - metrics["target_head_height_ratio"]
+
+    if head_top_delta < -0.06:
+        suggestions.append("Move crop up or zoom out: top of head is too close to the edge.")
+    elif head_top_delta > 0.06:
+        suggestions.append("Move crop down or zoom in: there is too much space above the head.")
+
+    if eye_delta < -0.05:
+        suggestions.append("Move crop up: eyes are too high in the frame.")
+    elif eye_delta > 0.05:
+        suggestions.append("Move crop down: eyes are too low in the frame.")
+
+    if size_delta < -0.10:
+        suggestions.append("Shrink crop / zoom in: head is too small.")
+    elif size_delta > 0.10:
+        suggestions.append("Enlarge crop / zoom out: head is too large.")
+
+    if metrics["actual_center_offset_ratio"] > 0.08:
+        suggestions.append("Move crop left or right: face is not centered.")
+
+    if not suggestions:
+        suggestions.append("Framing is within the current guide tolerance.")
+    return tuple(suggestions)
+
+
 def crop_to_spec(
     image_bgr: np.ndarray,
     bbox: Tuple[int, int, int, int],
@@ -881,9 +990,9 @@ def build_print_sheet(
         # Create drawing context for guide lines
         from PIL import ImageDraw
         draw = ImageDraw.Draw(sheet)
-        guide_color = (200, 200, 200)  # Light gray cutting guide lines
+        guide_color = (238, 238, 238)  # Nearly invisible cutting guide lines
         guide_width = 1
-        outline_color = (210, 210, 210)  # Very light gray photo outline for cutting edges
+        outline_color = (242, 242, 242)  # Very light photo outline for cutting edges
         outline_width = 1
     
     placed = 0
@@ -921,8 +1030,8 @@ def build_print_sheet(
                       fill=guide_color, width=guide_width)
         
         # Draw corner markers at photo edges for precise cutting (tiny L-shaped corners at each photo's edges)
-        corner_marker_color = (180, 180, 180)  # Slightly darker gray for visibility
-        corner_size = 5
+        corner_marker_color = (232, 232, 232)
+        corner_size = 4
         
         for row in range(max_rows):
             for col in range(max_cols):

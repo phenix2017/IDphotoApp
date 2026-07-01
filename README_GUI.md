@@ -82,12 +82,39 @@ After running either method above:
 | Setting | Options | Default |
 |---------|---------|---------|
 | **Country** | US, CA, UK | US |
-| **Replace BG** | Yes / No | No |
-| **DPI** | 100-600 | 300 |
-| **Layout** | 4x6", 6x6", Custom | 4x6" |
-| **Copies** | 1-20 | 6 |
-| **Margin** | 0.0-1.0" | 0.1" |
-| **Spacing** | 0.0-1.0" | 0.1" |
+| **Picture mode** | Standard ID photo, Difficult background / shadows, Manual crop adjustment | Standard ID photo |
+
+Advanced controls are collapsed by default so a beginner only has to choose the country/spec and picture mode. The advanced sections contain background replacement, background engine, color, tolerance, face protection, DPI, print layout, margins, spacing, crop guides, very light print cut lines, and mask preview.
+
+### Picture Modes
+
+| Mode | Use When | Notes |
+|------|----------|-------|
+| **Standard ID photo** | Most photos | Uses practical defaults and the faster local background engine. |
+| **Difficult background / shadows** | Wall shadows, hair edges, difficult backgrounds | Uses the local BiRefNet portrait model first and a higher default tolerance. First run may download/load the model and take longer. |
+| **Manual crop adjustment** | Automatic crop needs adjustment | Opens the spec-based crop guide and recommended adjustment panel. |
+
+### Background Engines
+
+All photo processing is local. The app does not upload user photos to a background-removal API.
+
+| Engine | Behavior |
+|--------|----------|
+| **Best quality (BiRefNet)** | Highest-quality local portrait segmentation. Slower, especially on CPU. |
+| **Fast local (rembg)** | Faster local model with good general quality. |
+| **Classic fallback** | Avoids the downloaded ML models and uses the older local OpenCV/MediaPipe fallback path. |
+
+The first use of BiRefNet or rembg may download model files from their model hosts into the local model cache. Later runs reuse the cached models.
+
+### Manual Fine Tune Guides
+
+Manual mode now uses the selected country spec instead of fixed guide percentages:
+
+- **Head top** uses `top_margin_ratio`
+- **Eyes** uses `eye_line_from_bottom_ratio`
+- **Chin / head bottom** uses `head_height_ratio`
+- The default crop starts from detected face/eye position and the target output aspect ratio
+- The recommendation panel suggests actions such as moving the crop, zooming in/out, or centering the face
 
 ### Results Display
 | Component | Shows |
