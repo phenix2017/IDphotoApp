@@ -726,6 +726,125 @@ def compute_output_size_px(spec: PhotoSpec, dpi: int) -> Tuple[int, int]:
     return int(round(spec.width_in * dpi)), int(round(spec.height_in * dpi))
 
 
+def _unsharp_mask(image_bgr: np.ndarray, amount: float = 0.8, radius: float = 1.5, threshold: int = 2) -> np.ndarray:
+    """Sharpen fine detail (e.g. printed text) via the standard unsharp-mask formula:
+    sharpened = original + amount * (original - blurred). threshold leaves near-flat
+    regions untouched so noise/skin/background isn't amplified along with real edges.
+    """
+    blurred = cv2.GaussianBlur(image_bgr, (0, 0), radius)
+    sharpened = cv2.addWeighted(image_bgr, 1 + amount, blurred, -amount, 0)
+    if threshold > 0:
+        low_contrast = np.abs(image_bgr.astype(np.int16) - blurred.astype(np.int16)) < threshold
+        sharpened = np.where(low_contrast, image_bgr, sharpened)
+    return np.clip(sharpened, 0, 255).astype(np.uint8)
+
+
+def clean_card_photo(
+    image_bgr: np.ndarray,
+    background_rgb: Tuple[int, int, int],
+    bg_tolerance: float = 25.0,
+    margin_ratio: float = 0.04,
+) -> np.ndarray:
+    """Replace the background behind a photographed/scanned card and trim to its bounding box.
+
+    Unlike replace_background, this has no face_bbox to anchor on: it segments the whole
+    frame's subject (the card) and reuses that same mask to crop tightly around it, so a
+    card photographed on a table comes out as a clean, tightly framed rectangle.
+    """
+    alpha = get_foreground_alpha(image_bgr, face_bbox=None, prefer_white_key=True, bg_tolerance=bg_tolerance)
+
+    background = np.full_like(image_bgr, background_rgb[::-1])  # RGB to BGR
+    alpha_f = (alpha.astype(np.float32) / 255.0)[:, :, None]
+    composite = (image_bgr.astype(np.float32) * alpha_f + background.astype(np.float32) * (1.0 - alpha_f)).astype(
+        np.uint8
+    )
+
+    ys, xs = np.where(alpha > 40)
+    if ys.size == 0 or xs.size == 0:
+        return _unsharp_mask(composite)
+
+    y0, y1 = int(ys.min()), int(ys.max())
+    x0, x1 = int(xs.min()), int(xs.max())
+    h, w = alpha.shape[:2]
+    pad_y = int(round((y1 - y0) * margin_ratio))
+    pad_x = int(round((x1 - x0) * margin_ratio))
+    y0 = max(0, y0 - pad_y)
+    y1 = min(h, y1 + pad_y + 1)
+    x0 = max(0, x0 - pad_x)
+    x1 = min(w, x1 + pad_x + 1)
+    # Sharpen after cropping to the card, so the printed name/number/MRZ text reads
+    # crisper instead of the soft edges typical of a phone-camera photo.
+    return _unsharp_mask(composite[y0:y1, x0:x1])
+
+
+def build_front_back_sheet(
+    front: Image.Image,
+    back: Image.Image,
+    layout: LayoutSpec,
+    dpi: int,
+    margin_in: float = 0.25,
+    spacing_in: float = 0.2,
+    draw_guides: bool = True,
+) -> Image.Image:
+    """Place a single front image above a single back image, centered on one sheet.
+
+    Front and back are scaled to a shared width (preserving each image's own aspect ratio),
+    as large as the page allows without upscaling past either source image's native
+    resolution — printing bigger than that would just enlarge blur instead of adding
+    real detail, so the cap tracks the photo's actual resolution rather than a fixed size.
+    """
+    sheet_w = int(round(layout.width_in * dpi))
+    sheet_h = int(round(layout.height_in * dpi))
+    margin = int(round(margin_in * dpi))
+    spacing = int(round(spacing_in * dpi))
+
+    available_w = sheet_w - 2 * margin
+    available_h = sheet_h - 2 * margin
+
+    front_w, front_h = front.size
+    back_w, back_h = back.size
+
+    # Largest shared width so front_h_at_width + spacing + back_h_at_width <= available_h,
+    # derived directly from width * (front_h/front_w + back_h/back_w) <= available_h - spacing.
+    height_per_width = front_h / front_w + back_h / back_w
+    width_by_height = (available_h - spacing) / height_per_width if height_per_width > 0 else available_w
+    no_upscale_width = min(front_w, back_w)
+    width = max(1, min(available_w, width_by_height, no_upscale_width))
+
+    front_resized = front.resize(
+        (int(round(width)), max(1, int(round(width / front_w * front_h)))), Image.LANCZOS
+    )
+    back_resized = back.resize(
+        (int(round(width)), max(1, int(round(width / back_w * back_h)))), Image.LANCZOS
+    )
+
+    sheet = Image.new("RGB", (sheet_w, sheet_h), (255, 255, 255))
+    fw, fh = front_resized.size
+    bw, bh = back_resized.size
+    total_h = fh + spacing + bh
+
+    top = margin + max(0, (available_h - total_h) // 2)
+    front_x = margin + max(0, (available_w - fw) // 2)
+    back_x = margin + max(0, (available_w - bw) // 2)
+
+    sheet.paste(front_resized, (front_x, top))
+    sheet.paste(back_resized, (back_x, top + fh + spacing))
+
+    if draw_guides:
+        from PIL import ImageDraw
+
+        draw = ImageDraw.Draw(sheet)
+        outline_color = (242, 242, 242)  # Very light outline for cutting edges
+        draw.rectangle([(front_x, top), (front_x + fw - 1, top + fh - 1)], outline=outline_color, width=1)
+        draw.rectangle(
+            [(back_x, top + fh + spacing), (back_x + bw - 1, top + fh + spacing + bh - 1)],
+            outline=outline_color,
+            width=1,
+        )
+
+    return sheet
+
+
 def clamp_crop_rect(
     left: float,
     top: float,
@@ -931,7 +1050,7 @@ def build_print_sheet(
     draw_guides: bool = True,
 ) -> Image.Image:
     """Build print sheet maximizing photo usage on paper.
-    
+
     Args:
         photo: Photo to tile
         layout: Sheet dimensions (width_in, height_in)
@@ -939,35 +1058,35 @@ def build_print_sheet(
         margin_in: Margin from edges (default: 0.25" - standard print margin)
         spacing_in: Space between photos (default: 0.05")
         copies: Number of photos to place
-    
+
     Returns:
         PIL Image with tiled photos
     """
     sheet_w = int(round(layout.width_in * dpi))
     sheet_h = int(round(layout.height_in * dpi))
-    
+
     # Use minimal margins and spacing for maximum photo density
     margin = int(round(margin_in * dpi))
     spacing = int(round(spacing_in * dpi))
-    
+
     sheet = Image.new("RGB", (sheet_w, sheet_h), (255, 255, 255))
     photo_w, photo_h = photo.size
 
     # Calculate how many photos fit per row and column
     available_width = sheet_w - 2 * margin
     available_height = sheet_h - 2 * margin
-    
+
     # Calculate maximum photos that can fit with original orientation
     max_cols_orig = max(1, (available_width + spacing) // (photo_w + spacing))
     max_rows_orig = max(1, (available_height + spacing) // (photo_h + spacing))
     total_photos_orig = max_cols_orig * max_rows_orig
-    
+
     # Calculate maximum photos that can fit with 90-degree rotation
     photo_w_rot, photo_h_rot = photo_h, photo_w  # Swap dimensions for rotation
     max_cols_rot = max(1, (available_width + spacing) // (photo_w_rot + spacing))
     max_rows_rot = max(1, (available_height + spacing) // (photo_h_rot + spacing))
     total_photos_rot = max_cols_rot * max_rows_rot
-    
+
     # Choose orientation that fits more photos
     if total_photos_rot > total_photos_orig:
         photo = photo.rotate(90, expand=True)
@@ -977,15 +1096,15 @@ def build_print_sheet(
     else:
         max_cols = max_cols_orig
         max_rows = max_rows_orig
-    
+
     # Center the photos on the sheet for better appearance
     total_photos_width = max_cols * photo_w + (max_cols - 1) * spacing
     total_photos_height = max_rows * photo_h + (max_rows - 1) * spacing
-    
+
     # Calculate centered margins
     left_margin = margin + (available_width - total_photos_width) // 2
     top_margin = margin + (available_height - total_photos_height) // 2
-    
+
     if draw_guides:
         # Create drawing context for guide lines
         from PIL import ImageDraw
@@ -994,7 +1113,7 @@ def build_print_sheet(
         guide_width = 1
         outline_color = (242, 242, 242)  # Very light photo outline for cutting edges
         outline_width = 1
-    
+
     placed = 0
     for row in range(max_rows):
         for col in range(max_cols):
@@ -1003,7 +1122,7 @@ def build_print_sheet(
             x = left_margin + col * (photo_w + spacing)
             y = top_margin + row * (photo_h + spacing)
             sheet.paste(photo, (x, y))
-            
+
             if draw_guides:
                 # Draw subtle outline around each photo for clear cutting edges
                 draw.rectangle(
@@ -1011,7 +1130,7 @@ def build_print_sheet(
                     outline=outline_color,
                     width=outline_width
                 )
-            
+
             placed += 1
         if placed >= copies:
             break

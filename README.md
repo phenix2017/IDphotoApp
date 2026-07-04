@@ -27,12 +27,31 @@ This document outlines a practical desktop workflow and supporting architecture 
 5. **Export** final photo + print sheet layout
 
 ### Key Components
-- **Spec engine**: Country presets (size, head height % of photo, eye-line %). Example: US passport 2x2 in, head height 50–69% of photo height.
-- **Face detection**: Detect face bounding box and landmarks (eyes, nose).
-- **Cropper**: Adjust crop window to meet head-size and eye-line spec.
-- **Background replace**: Semantic segmentation or chroma-based replacement to solid color.
-- **Layout engine**: Arrange multiple copies on 4x6 or 6x6 sheet.
+### Key Components
+- **streamlit_app.py**: Beginner-focused UI, preview, downloads, and manual adjustment controls.
+- **photo_service.py**: Application workflow orchestration and structured processing result helpers.
+- **spec_loader.py**: Country/spec loading and validation boundary.
+- **crop_engine.py**: Auto-crop and manual crop geometry boundary.
+- **background_engine.py**: Explicit background backend selection policy.
+- **print_sheet.py**: Print layout and very light cut-guide boundary.
+- **process_photo.py**: Core image algorithms and CLI-compatible processing functions.
 
+### Dependency Direction
+
+```mermaid
+flowchart TD
+    UI[streamlit_app.py] --> Service[photo_service.py]
+    UI --> Crop[crop_engine.py]
+    UI --> Sheet[print_sheet.py]
+    UI --> Specs[spec_loader.py]
+    Service --> BG[background_engine.py]
+    Service --> Core[process_photo.py]
+    Crop --> Core
+    Sheet --> Core
+    Specs --> Core
+```
+
+The UI should stay thin: it can collect settings and render previews, but reusable processing policy belongs in the service and boundary modules.
 ## 3) Country Spec Examples
 - **US Passport**: 2x2 in (51x51 mm), head height 50–69% of image height, eye line 56–69% from bottom.
 - **Canada Passport**: 50x70 mm, head size 31–36 mm (top of head to chin).

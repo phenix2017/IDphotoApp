@@ -3,7 +3,7 @@
 ## ✅ What Was Created
 
 ### Core GUI Application
-✅ **streamlit_app.py** (367 lines)
+✅ **streamlit_app.py**
 - Web-based graphical interface
 - Photo upload with drag & drop
 - Live preview of results
@@ -82,17 +82,17 @@ After running either method above:
 | Setting | Options | Default |
 |---------|---------|---------|
 | **Country** | US, CA, UK | US |
-| **Picture mode** | Standard ID photo, Difficult background / shadows, Manual crop adjustment | Standard ID photo |
+| **Photo situation** | Normal photo, Shadow or messy background, Need to adjust crop | Normal photo |
 
-Advanced controls are collapsed by default so a beginner only has to choose the country/spec and picture mode. The advanced sections contain background replacement, background engine, color, tolerance, face protection, DPI, print layout, margins, spacing, crop guides, very light print cut lines, and mask preview.
+Advanced controls are collapsed by default so a beginner only has to choose the country/spec and photo situation, upload a photo, then click **Create ID photo**. The advanced sections contain background cleanup, background method, color, cleanup strength, face protection, print quality, print layout, margins, spacing, crop guides, very light print cut lines, and mask preview.
 
-### Picture Modes
+### Photo Situations
 
 | Mode | Use When | Notes |
 |------|----------|-------|
-| **Standard ID photo** | Most photos | Uses practical defaults and the faster local background engine. |
-| **Difficult background / shadows** | Wall shadows, hair edges, difficult backgrounds | Uses the local BiRefNet portrait model first and a higher default tolerance. First run may download/load the model and take longer. |
-| **Manual crop adjustment** | Automatic crop needs adjustment | Opens the spec-based crop guide and recommended adjustment panel. |
+| **Normal photo** | Most photos | Uses practical defaults and the faster local background engine. |
+| **Shadow or messy background** | Wall shadows, hair edges, difficult backgrounds | Uses the local BiRefNet portrait model first and a higher default cleanup strength. First run may download/load the model and take longer. |
+| **Need to adjust crop** | Automatic crop needs adjustment | Opens the spec-based crop guide and recommended adjustment panel. |
 
 ### Background Engines
 
@@ -100,9 +100,9 @@ All photo processing is local. The app does not upload user photos to a backgrou
 
 | Engine | Behavior |
 |--------|----------|
-| **Best quality (BiRefNet)** | Highest-quality local portrait segmentation. Slower, especially on CPU. |
-| **Fast local (rembg)** | Faster local model with good general quality. |
-| **Classic fallback** | Avoids the downloaded ML models and uses the older local OpenCV/MediaPipe fallback path. |
+| **Best quality (slower)** | BiRefNet portrait segmentation. Highest quality, slower especially on CPU. |
+| **Fast (recommended)** | rembg model. Faster with good general quality. |
+| **Basic (no AI model)** | Avoids the downloaded ML models and uses the older local OpenCV/MediaPipe fallback path. |
 
 The first use of BiRefNet or rembg may download model files from their model hosts into the local model cache. Later runs reuse the cached models.
 
@@ -297,7 +297,7 @@ streamlit run streamlit_app.py --server.port 8502
 ## 📚 FILE REFERENCE
 
 ### Main Application
-- `streamlit_app.py` (367 lines) - GUI application
+- `streamlit_app.py` - GUI application
 
 ### Launcher
 - `run_gui.bat` - Windows launcher script
