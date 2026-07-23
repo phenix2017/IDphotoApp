@@ -24,6 +24,7 @@ class PhotoProcessOptions:
     background_engine: str
     bg_tolerance: float
     face_protect: float
+    enforce_target: bool = True
 
 
 @dataclass(frozen=True)
@@ -80,6 +81,7 @@ def process_id_photo(image_bgr: np.ndarray, options: PhotoProcessOptions) -> Pho
         options.spec,
         options.dpi,
         background_rgb=options.background_rgb,
+        enforce_target=options.enforce_target,
     )
 
     cropped_face_bbox = None

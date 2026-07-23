@@ -959,15 +959,40 @@ def crop_to_spec(
     spec: PhotoSpec,
     dpi: int,
     background_rgb: Optional[Tuple[int, int, int]] = None,
+    inflate: float = 1.15,
+    fit_mode: str = "spec",
+    body_factor: float = 2.0,
+    enforce_target: bool = True,
 ) -> np.ndarray:
     """Crop and resize to spec while maintaining aspect ratio (no face distortion)."""
     out_w, out_h = compute_output_size_px(spec, dpi)
     x_min, y_min, box_w, box_h = bbox
 
     target_head_height = spec.head_height_ratio * out_h
-    # Inflate the face box to avoid cutting off the head for tighter detectors.
-    inflate = 1.15
-    scale = target_head_height / max(box_h * inflate, 1)
+    # Compute scale according to chosen fit mode.
+    if fit_mode == "actual":
+        # Try to measure actual head top/chin from segmentation; fall back to face bbox estimate
+        measured_head_top = int(round(y_min - box_h * 0.15))
+        measured_chin = int(round(y_min + box_h))
+        try:
+            alpha = get_foreground_alpha(image_bgr, face_bbox=bbox)
+            if alpha is not None:
+                h_img, w_img = alpha.shape[:2]
+                x0 = max(0, x_min - int(box_w * 0.5))
+                x1 = min(w_img, x_min + box_w + int(box_w * 0.5))
+                ys, xs = np.where(alpha[:, x0:x1] > 40)
+                if ys.size > 0:
+                    measured_head_top = int(ys.min())
+                    measured_chin = int(ys.max())
+        except Exception:
+            pass
+
+        measured_head_height = max(1, measured_chin - measured_head_top)
+        desired_crop_h = int(round(measured_head_height * max(0.1, body_factor)))
+        scale = out_h / max(desired_crop_h, 1)
+    else:
+        # Default/spec-driven behavior: scale so head occupies spec.head_height_ratio of output
+        scale = target_head_height / max(box_h * inflate, 1)
 
     # Scale uniformly to preserve aspect ratio
     resized = cv2.resize(image_bgr, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
@@ -988,7 +1013,9 @@ def crop_to_spec(
     min_top_margin = int(round(out_h * spec.top_margin_ratio))
     extra_headroom = int(round(out_h * 0.02))
     desired_top = head_top - min_top_margin - extra_headroom
-    if top > desired_top:
+    # When enforcing the target head size, avoid moving the crop top in a way
+    # that would change the final scaling/positioning; only adjust when not enforced.
+    if (not enforce_target) and top > desired_top:
         top = desired_top
 
     # Crop with padding - maintains aspect ratio
@@ -1194,6 +1221,14 @@ def main() -> None:
     parser.add_argument("--country", required=True, help="Country code from specs.json")
     parser.add_argument("--dpi", type=int, default=300)
     parser.add_argument("--replace-bg", action="store_true")
+    parser.add_argument("--inflate", type=float, default=1.15, help="Inflation factor applied to detected face box when scaling (default: 1.15)")
+    parser.add_argument("--bbox-expand-x", type=float, default=0.4, help="Horizontal bbox expansion fraction for background/foreground mask (default: 0.4)")
+    parser.add_argument("--bbox-expand-y", type=float, default=0.6, help="Vertical bbox expansion fraction for background/foreground mask (default: 0.6)")
+    parser.add_argument("--fit-mode", choices=("spec","actual"), default="spec", help="Crop sizing mode: 'spec' enforces spec head size, 'actual' fits crop using measured head top/chin from the photo")
+    parser.add_argument("--body-factor", type=float, default=2.0, help="When --fit-mode=actual, include this multiple of head height for crop height (default 2.0)")
+    # Enforce the spec target head size by default; provide an opt-out flag.
+    parser.add_argument("--no-enforce-target", dest="enforce_target", action="store_false", help="Do not force final head size to match spec (allow looser framing)")
+    parser.set_defaults(enforce_target=True)
     parser.add_argument("--layout", type=parse_layout, default=parse_layout("4x6"))
     parser.add_argument("--copies", type=int, default=6)
     parser.add_argument("--margin", type=float, default=0.1, help="Margin in inches")
@@ -1219,19 +1254,49 @@ def main() -> None:
         spec,
         args.dpi,
         background_rgb=spec.background_rgb,
+        inflate=args.inflate,
+        fit_mode=args.fit_mode,
+        body_factor=args.body_factor,
     )
     if args.replace_bg:
         try:
             cropped_bbox, _ = detect_face(cropped_bgr)
         except Exception:
             cropped_bbox = None
-        cropped_bgr = replace_background(cropped_bgr, spec.background_rgb, face_bbox=cropped_bbox)
+        cropped_bgr = replace_background(
+            cropped_bgr,
+            spec.background_rgb,
+            face_bbox=cropped_bbox,
+            bbox_expand_x=args.bbox_expand_x,
+            bbox_expand_y=args.bbox_expand_y,
+        )
 
     output_dir = args.output_dir
     output_dir.mkdir(parents=True, exist_ok=True)
 
     cropped_rgb = cv2.cvtColor(cropped_bgr, cv2.COLOR_BGR2RGB)
     photo = Image.fromarray(cropped_rgb)
+
+    # Compute actual head-fill from the final cropped image (face bbox or mask fallback)
+    actual_fill = None
+    try:
+        cropped_bbox, _ = detect_face(cropped_bgr)
+        bx, by, bw, bh = cropped_bbox
+        est_top = int(round(by - bh * 0.15))
+        est_bottom = int(round(by + bh))
+        head_h = max(1, est_bottom - est_top)
+        final_h = max(1, cropped_bgr.shape[0])
+        actual_fill = head_h / final_h
+    except Exception:
+        try:
+            alpha = get_foreground_alpha(cropped_bgr, face_bbox=None)
+            ys, xs = np.where(alpha > 40)
+            if ys.size > 0:
+                head_h = max(1, int(ys.max() - ys.min()))
+                final_h = max(1, cropped_bgr.shape[0])
+                actual_fill = head_h / final_h
+        except Exception:
+            actual_fill = None
 
     photo_path = output_dir / f"{args.country.lower()}_photo.jpg"
     photo.save(photo_path, quality=95)
@@ -1248,6 +1313,10 @@ def main() -> None:
     sheet.save(sheet_path, quality=95)
 
     print(f"Saved cropped photo: {photo_path}")
+    if actual_fill is not None:
+        print(f"Head frame coverage: {actual_fill:.0%} (target {spec.head_height_ratio:.0%})")
+    else:
+        print(f"Head frame coverage (target): {spec.head_height_ratio:.0%}")
     print(f"Saved print sheet: {sheet_path}")
 
 

@@ -438,6 +438,7 @@ with st.sidebar:
             disabled=not replace_bg,
         )
         dpi = st.slider("Print quality (DPI)", min_value=100, max_value=600, value=300, step=50, help="300 DPI is standard for photo printing. Higher values create larger files.")
+        enforce_target = st.checkbox("Enforce spec head size", value=True, help="Force final crop to match the specification's head height (uncheck to allow looser framing)")
         
     st.divider()
     
@@ -556,7 +557,15 @@ if document_type == "Passport / Visa photo":
                         cropped_bgr = image_bgr.copy()
                     else:
                         # Crop to spec
-                        cropped_bgr = crop_to_spec(image_bgr, bbox, eye_point, specs[country], dpi, background_rgb=pad_rgb)
+                        cropped_bgr = crop_to_spec(
+                            image_bgr,
+                            bbox,
+                            eye_point,
+                            specs[country],
+                            dpi,
+                            background_rgb=pad_rgb,
+                            enforce_target=bool(enforce_target),
+                        )
 
                     # Replace after cropping so the cutout edge is generated at final resolution.
                     if replace_bg and not transparent_bg:
@@ -841,6 +850,26 @@ if document_type == "Passport / Visa photo":
                     # Update cropped_bgr to use manual adjustment
                     cropped_bgr = manual_cropped_bgr
 
+                    # If user requested background cleanup, re-run background replacement
+                    # on the manual-cropped image so the final result reflects the selection.
+                    if replace_bg and not transparent_bg:
+                        try:
+                            bbox_cropped, _ = detect_face(cropped_bgr)
+                        except Exception:
+                            bbox_cropped = None
+                        try:
+                            cropped_bgr = _cached_replace_background(
+                                encode_png_bytes(cropped_bgr),
+                                tuple(background_rgb),
+                                tuple(int(v) for v in bbox_cropped) if bbox_cropped is not None else None,
+                                float(bg_tolerance),
+                                float(face_protect),
+                                background_engine,
+                            )
+                        except Exception:
+                            # If background replacement fails here, keep the manual crop as-is
+                            pass
+
                     # Validate estimated feature positioning against spec-driven targets.
                     crop_h = max(1, y2 - y1)
                     crop_w = max(1, x2 - x1)
@@ -1097,7 +1126,39 @@ if document_type == "Passport / Visa photo":
                     with col_specs2:
                         st.metric("Photo Size", f"{specs[country].width_in}\" x {specs[country].height_in}\"")
                     with col_specs3:
-                        st.metric("Head Frame Coverage", f"{specs[country].head_height_ratio:.0%}")
+                        # Compute actual head fill for the produced photo (use face bbox or alpha mask)
+                        actual_fill = None
+                        try:
+                            bbox_cropped, _ = detect_face(cropped_bgr)
+                            bx, by, bw, bh = bbox_cropped
+                            est_top = int(round(by - bh * 0.15))
+                            est_bottom = int(round(by + bh))
+                            head_h = max(1, est_bottom - est_top)
+                            final_h = max(1, cropped_bgr.shape[0])
+                            actual_fill = head_h / final_h
+                        except Exception:
+                            try:
+                                with selected_background_engine(background_engine):
+                                    mask_crop = get_foreground_alpha(
+                                        cropped_bgr,
+                                        face_bbox=None,
+                                        bbox_expand_x=0.2,
+                                        bbox_expand_y=0.3,
+                                        bg_tolerance=float(bg_tolerance),
+                                        face_protect=float(face_protect),
+                                    )
+                                ys, xs = np.where(mask_crop > 40)
+                                if ys.size > 0:
+                                    head_h = max(1, int(ys.max() - ys.min()))
+                                    final_h = max(1, cropped_bgr.shape[0])
+                                    actual_fill = head_h / final_h
+                            except Exception:
+                                actual_fill = None
+
+                        if actual_fill is not None:
+                            st.metric("Head Frame Coverage", f"{actual_fill:.0%}", delta=f"target {specs[country].head_height_ratio:.0%}")
+                        else:
+                            st.metric("Head Frame Coverage", f"{specs[country].head_height_ratio:.0%}")
 
         except RuntimeError as e:
             st.error(f"Error: {str(e)}")
